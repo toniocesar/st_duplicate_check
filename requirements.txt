@@ -1,0 +1,9 @@
+beautifulsoup4
+requests
+pandas
+pyperclip
+flask
+rapidfuzz
+fuzzysearch
+matplotlib
+streamlit
