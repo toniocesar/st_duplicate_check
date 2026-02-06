@@ -10,3 +10,4 @@ streamlit
 altair>=4.2.0,<5
 pillow
 standard-imghdr
+openpyxl
