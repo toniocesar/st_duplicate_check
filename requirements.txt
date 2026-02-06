@@ -7,4 +7,4 @@ rapidfuzz
 fuzzysearch
 matplotlib
 streamlit
-altair
+altair>=4.2.0,<5
