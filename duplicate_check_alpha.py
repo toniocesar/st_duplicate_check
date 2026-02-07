@@ -35,7 +35,7 @@ from streamlit.runtime.scriptrunner import get_script_run_ctx
 
 # ### Variable Declarations
 
-# In[40]:
+# In[4]:
 
 
 if "duplicate_leis" not in st.session_state:
@@ -67,7 +67,7 @@ url_stem = "https://api.gleif.org/api/v1/lei-records/"
 
 # ### Reading of dictionaries (later optimize this using cache for streamlit
 
-# In[9]:
+# In[5]:
 
 
 try:
@@ -85,13 +85,13 @@ df_gleif_authority = pd.read_csv(
 print(df_gleif_authority.head())
 
 
-# In[10]:
+# In[6]:
 
 
 #df_gleif_authority = pd.read_csv(r"C:\Users\AC\Documents\EQS\Automation Project\Dictionaries\GLEIF_authority_dictionary.csv")
 
 
-# In[11]:
+# In[7]:
 
 
 try:
@@ -109,7 +109,7 @@ df_legal_form = pd.read_excel(
 print(df_legal_form.head())
 
 
-# In[12]:
+# In[8]:
 
 
 #df_legal_form = pd.read_excel(r"C:\Users\AC\Documents\EQS\Automation Project\Dictionaries\GLEIF_legal_form_dictionary.xlsx") 
@@ -117,7 +117,7 @@ print(df_legal_form.head())
 
 # ### Functions
 
-# In[38]:
+# In[9]:
 
 
 def duplicate_check (lei: str):
@@ -178,7 +178,7 @@ def duplicate_check (lei: str):
     return gleif_variables
 
 
-# In[14]:
+# In[10]:
 
 
 def concat_address_fields(address: dict) -> str:
@@ -203,7 +203,7 @@ def concat_address_fields(address: dict) -> str:
     return ", ".join(parts)
 
 
-# In[44]:
+# In[11]:
 
 
 def run_duplicate_checks():
@@ -214,7 +214,7 @@ def run_duplicate_checks():
             st.session_state.all_gleif_duplicates.append(result)
 
 
-# In[16]:
+# In[12]:
 
 
 def parse_lei_manager(text_lei_manager, debug=False):
@@ -308,7 +308,7 @@ def parse_lei_manager(text_lei_manager, debug=False):
     return manager_vars
 
 
-# In[37]:
+# In[13]:
 
 
 def generate_results():
@@ -339,7 +339,7 @@ def generate_results():
     return st.session_state.all_results
 
 
-# In[28]:
+# In[14]:
 
 
 def is_streamlit_running():
@@ -349,7 +349,7 @@ def is_streamlit_running():
         return False
 
 
-# In[29]:
+# In[15]:
 
 
 def plot_scores(scores_list, title="Feature Similarity Scores"):
@@ -420,31 +420,47 @@ def plot_scores(scores_list, title="Feature Similarity Scores"):
 
 # ### Insert Message Below
 
-# In[43]:
+# In[16]:
 
 
 if st.button("Reset Variables"):
     st.session_state.clear()
 
 
-# In[35]:
+# In[17]:
 
 
-if st.button("Button 1 - Duplicates"):
 
-    text = pyperclip.paste()
-    st.session_state.duplicate_leis = [
-        match
-        for line in text.splitlines()
-        for match in re.findall(pattern, line)
-    ]
 
-    if st.session_state.duplicate_leis:
-        st.success(f"{len(st.session_state.duplicate_leis)} LEI(s) found:")
 
+# In[25]:
+
+
+st.subheader("Duplicates LEIs")
+
+duplicates_text = st.text_area(
+    "Paste the LEI numbers here (one per line)",
+    height=200
+)
+
+if st.button("Process duplicates"):
+    if duplicates_text.strip():
+        st.session_state.duplicate_leis = re.findall(
+            pattern,
+            duplicates_text,
+            flags=re.MULTILINE
+        )
+
+        if st.session_state.duplicate_leis:
+            st.success(f"{len(st.session_state.duplicate_leis)} LEI(s) found:")
+            for lei in st.session_state.duplicate_leis:
+                st.write(lei)
+
+            run_duplicate_checks()
+        else:
+            st.warning("No LEI-Number found (duplicates)")
     else:
-        st.warning("No LEI-Number found (duplicates)")
-    run_duplicate_checks()
+        st.warning("Please paste some text first.")
 
 
 # In[ ]:
@@ -453,14 +469,14 @@ if st.button("Button 1 - Duplicates"):
 
 
 
-# In[21]:
+# In[19]:
 
 
 #duplicate_leis = re.findall(pattern, duplicate_message, flags=re.MULTILINE)
 #print(duplicate_leis)
 
 
-# In[22]:
+# In[20]:
 
 
 #len(duplicate_leis)
@@ -476,20 +492,31 @@ if st.button("Button 1 - Duplicates"):
 
 # ### LEI-Manager Data-extraction
 
-# In[23]:
+# In[26]:
 
 
-if st.button("Button 2"):
-    st.success(f"Button 2 was pressed")
-    text = pyperclip.paste()
-    text_lei_manager = "\n".join(text.splitlines())
-    st.session_state.manager_vars = parse_lei_manager(text_lei_manager)
+st.subheader("LEI Manager Data")
+
+manager_text = st.text_area(
+    "Paste the LEI Manager full text here",
+    height=300
+)
+
+if st.button("Process LEI Manager"):
+    if manager_text.strip():
+        st.session_state.manager_vars = parse_lei_manager(manager_text)
+        st.success("LEI Manager information extracted successfully")
+
+        # (opcional) debug / visualização
+        st.write(st.session_state.manager_vars)
+    else:
+        st.warning("Please paste the LEI Manager text first.")
 
 
 
 # ### Matching
 
-# In[45]:
+# In[22]:
 
 
 if st.button("Plot"):
@@ -502,4 +529,7 @@ if st.button("Plot"):
 
 
 # In[ ]:
+
+
+
 
