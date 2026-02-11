@@ -64,6 +64,14 @@ if "manager_vars" not in st.session_state:
 pattern = r'^[A-Z0-9]{20}$'
 url_stem = "https://api.gleif.org/api/v1/lei-records/"
 
+FEATURE_KEY_MAP = {
+    "RegistrationID": "reg_ID",
+    "Legal Name": "legal_name",
+    "Address": "address",
+    "Date (delta)": "date",   # usado só para exibição
+    "Legal Form": "legal_form"
+}
+
 
 # ### Reading of dictionaries (later optimize this using cache for streamlit
 
@@ -91,7 +99,7 @@ print(df_gleif_authority.head())
 #df_gleif_authority = pd.read_csv(r"C:\Users\AC\Documents\EQS\Automation Project\Dictionaries\GLEIF_authority_dictionary.csv")
 
 
-# In[7]:
+# In[30]:
 
 
 try:
@@ -105,8 +113,6 @@ DATA_DIR = os.path.join(BASE_DIR, "data")
 df_legal_form = pd.read_excel(
     os.path.join(DATA_DIR, "GLEIF_legal_form_dictionary.xlsx")
 )
-
-print(df_legal_form.head())
 
 
 # In[8]:
@@ -129,6 +135,7 @@ def duplicate_check (lei: str):
     page = requests.get(url)
     if page.status_code != 200:
         print(f"\n\n ********** Erro ao buscar LEI {lei} — status {page.status_code} ********** \n\n")
+        st.write(f"\n\n ********** Error searching for LEI {lei} — status {page.status_code} ********** \n\n")
         return
 
     soup = BeautifulSoup(page.text, 'html')
@@ -136,8 +143,14 @@ def duplicate_check (lei: str):
     json_data = json.loads(str(soup))
 
     #aqui precisa formatar
+
+    DEFAULT_DATE = datetime(1, 1, 1)
+
     gleif_date = json_data["data"]["attributes"]["entity"]["creationDate"]
-    gleif_date = datetime.fromisoformat(gleif_date).replace(tzinfo=None)
+    if gleif_date is None:
+        gleif_date = DEFAULT_DATE
+    else:
+        gleif_date = datetime.fromisoformat(gleif_date).replace(tzinfo=None)
     gleif_variables["date"] = gleif_date
 
 
@@ -302,7 +315,6 @@ def parse_lei_manager(text_lei_manager, debug=False):
         print("Contact person:", contact_person)
         pprint(manager_vars)
 
-    st.write(f"manager_vars: {manager_vars}")
     st.session_state.manager_vars = manager_vars
 
     return manager_vars
@@ -331,7 +343,7 @@ def generate_results():
             ("Address", fuzz.partial_ratio(str(gleif_variables["address"].lower()), str(st.session_state.manager_vars["address"]).lower())), # lower-cased addresses 
             ("Legal Form", max(legal_form_score, legal_form_short_score, legal_form_other_score)),
             ]
-        #st.session_state.all_results.append(results)
+
         all_results.append(results)
         st.session_state.all_results = all_results
         st.session_state.gleif_variables = gleif_variables
@@ -347,6 +359,107 @@ def is_streamlit_running():
         return get_script_run_ctx() is not None
     except:
         return False
+
+
+# In[29]:
+
+
+def score_color(feature, value):
+    if value is None:
+        return ""
+
+    if feature == "Date (delta)":
+        if value <= 7:
+            return "background-color: #c6efce"   # verde
+        elif value <= 30:
+            return "background-color: #ffeb9c"   # amarelo
+        else:
+            return "background-color: #ffc7ce"   # vermelho
+    else:
+        if value >= 90:
+            return "background-color: #c6efce"
+        elif value >= 70:
+            return "background-color: #ffeb9c"
+        else:
+            return "background-color: #ffc7ce"
+
+
+# In[28]:
+
+
+def build_comparison_table(results, gleif_vars, manager_vars):
+
+    rows = []
+
+    for feature, score in results:
+
+        manager_value = manager_vars.get(
+            feature.lower().replace(" ", "_").replace("(delta)", "").strip(),
+            None
+        )
+
+        gleif_value = gleif_vars.get(
+            feature.lower().replace(" ", "_").replace("(delta)", "").strip(),
+            None
+        )
+
+        rows.append({
+            "Feature": feature,
+            "LEI Manager": manager_value,
+            "GLEIF Candidate": gleif_value,
+            "Score": score
+        })
+
+    df = pd.DataFrame(rows)
+
+    styled_df = df.style.apply(
+        lambda row: [
+            "",
+            "",
+            "",
+            score_color(row["Feature"], row["Score"])
+        ],
+        axis=1
+    )
+
+    return styled_df
+
+def build_comparison_table_2(results, gleif_vars, manager_vars):
+
+    rows = []
+
+    for feature, score in results:
+
+        key = FEATURE_KEY_MAP.get(feature)
+
+        manager_value = manager_vars.get(key) if key else None
+        gleif_value = gleif_vars.get(key) if key else None
+
+        # fallback inteligente para Legal Form
+        if feature == "Legal Form" and not gleif_value:
+            gleif_value = gleif_vars.get("legal_form_other")
+
+        rows.append({
+            "Feature": feature,
+            "LEI Manager": manager_value,
+            "GLEIF Candidate": gleif_value,
+            "Score": score
+        })
+
+    df = pd.DataFrame(rows)
+
+    styled_df = df.style.apply(
+        lambda row: [
+            "",
+            "",
+            "",
+            score_color(row["Feature"], row["Score"])
+        ],
+        axis=1
+    )
+
+    return styled_df
+
 
 
 # In[15]:
@@ -418,6 +531,57 @@ def plot_scores(scores_list, title="Feature Similarity Scores"):
         plt.show()
 
 
+# In[31]:
+
+
+def classify_duplicate(results):
+    """
+    Classifica um duplicate usando todas as features disponíveis.
+    Retorna: GREEN, YELLOW ou RED
+    """
+
+    scores = {feature: score for feature, score in results}
+
+    reg_ID = scores.get("RegistrationID")
+    legal_name = scores.get("Legal Name")
+    address = scores.get("Address")
+    legal_form = scores.get("Legal Form")
+    date = scores.get("Date (delta)")
+
+    # Se faltar algo essencial
+    if legal_name is None or address is None or date is None:
+        return "UNKNOWN"
+
+    # =========================
+    # 🟢 PROVÁVEL DUPLICATA
+    # =========================
+    if (
+        legal_name >= 90
+        and address >= 80
+        and date <= 7
+        and (reg_ID is None or reg_ID >= 95)
+        and (legal_form is None or legal_form >= 80)
+    ):
+        return "GREEN"
+
+    # =========================
+    # 🟡 POSSÍVEL DUPLICATA
+    # =========================
+    if (
+        legal_name >= 80
+        and address >= 65
+        and date <= 30
+        and (reg_ID is None or reg_ID >= 80)
+        and (legal_form is None or legal_form >= 60)
+    ):
+        return "YELLOW"
+
+    # =========================
+    # 🔴 POUCO PROVÁVEL
+    # =========================
+    return "RED"
+
+
 # ### Insert Message Below
 
 # In[16]:
@@ -439,7 +603,7 @@ if st.button("Reset Variables"):
 st.subheader("Duplicates LEIs")
 
 duplicates_text = st.text_area(
-    "Paste the LEI numbers here (one per line)",
+    "Paste duplicates message here",
     height=200
 )
 
@@ -505,10 +669,12 @@ manager_text = st.text_area(
 if st.button("Process LEI Manager"):
     if manager_text.strip():
         st.session_state.manager_vars = parse_lei_manager(manager_text)
-        st.success("LEI Manager information extracted successfully")
 
-        # (opcional) debug / visualização
-        st.write(st.session_state.manager_vars)
+        if st.session_state.manager_vars["legal_name"] is not None:
+            st.success("LEI Manager information extracted successfully")
+        else:
+            st.warning("Data not found. Check if your lei-manager is in english")
+
     else:
         st.warning("Please paste the LEI Manager text first.")
 
@@ -516,16 +682,32 @@ if st.button("Process LEI Manager"):
 
 # ### Matching
 
-# In[22]:
+# In[33]:
 
 
 if st.button("Plot"):
 
-    st.success(f"Plot button was pressed")
+    st.success("Plot button was pressed")
+
     all_results = generate_results()
 
-    for i, result in enumerate(all_results):
-        plot_scores(result, f"Feature Similarity Scores ({st.session_state.duplicate_leis[i]})")
+
+    for i, results in enumerate(all_results):
+        
+
+        classification_string = classify_duplicate(results)
+        gleif_vars = st.session_state.all_gleif_duplicates[i]
+        lei_code = st.session_state.duplicate_leis[i]
+
+        with st.expander(f"🔍 Duplicate candidate: {lei_code}"):
+
+            styled_table = build_comparison_table_2(
+                results,
+                gleif_vars,
+                st.session_state.manager_vars
+            )
+
+            st.dataframe(styled_table, use_container_width=True)
 
 
 # In[ ]:
