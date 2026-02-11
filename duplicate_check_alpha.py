@@ -455,7 +455,7 @@ def build_comparison_table_2(results, gleif_vars, manager_vars):
             "",
             "",
             "",
-            score_color(row["Feature"], row["Score"])
+            score_color(row["Feature"], float(row["Score"]))
         ],
         axis=1
     )
