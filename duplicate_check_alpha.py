@@ -741,7 +741,9 @@ if st.button("Plot"):
                 st.session_state.manager_vars
             )
 
-            st.dataframe(styled_table, use_container_width=True)
+            #st.dataframe(styled_table, use_container_width=True)
+            st.table(styled_table)
+
 
 
 # In[ ]:
