@@ -462,6 +462,31 @@ def build_comparison_table_2(results, gleif_vars, manager_vars):
 
     return styled_df
 
+def build_comparison_table_3(results, gleif_vars, manager_vars):
+
+    rows = []
+
+    for feature, score in results:
+
+        key = FEATURE_KEY_MAP.get(feature)
+
+        manager_value = manager_vars.get(key) if key else None
+        gleif_value = gleif_vars.get(key) if key else None
+
+        # fallback inteligente para Legal Form
+        if feature == "Legal Form" and not gleif_value:
+            gleif_value = gleif_vars.get("legal_form_other")
+
+        rows.append({
+            "Feature": feature,
+            "LEI Manager": manager_value,
+            "GLEIF Candidate": gleif_value,
+            "Score": score
+        })
+
+    df = pd.DataFrame(rows)
+
+    return df
 
 
 # In[15]:
@@ -692,18 +717,25 @@ if st.button("Plot"):
     st.success("Plot button was pressed")
 
     all_results = generate_results()
-
-
+    
+    
     for i, results in enumerate(all_results):
         
 
-        classification_string = classify_duplicate(results)
+        status = classify_duplicate(results)
+        emoji = {
+            "GREEN": "🟢",
+            "YELLOW": "🟡",
+            "RED": "🔴"
+        }[status]
+
+        
         gleif_vars = st.session_state.all_gleif_duplicates[i]
         lei_code = st.session_state.duplicate_leis[i]
 
-        with st.expander(f"🔍 Duplicate candidate: {lei_code}"):
+        with st.expander(f"🔍{emoji} Duplicate candidate: {lei_code}"):
 
-            styled_table = build_comparison_table_2(
+            styled_table = build_comparison_table_3(
                 results,
                 gleif_vars,
                 st.session_state.manager_vars
