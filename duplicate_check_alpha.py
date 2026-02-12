@@ -31,6 +31,7 @@ from matplotlib.patches import Patch
 import os
 import streamlit as st
 from streamlit.runtime.scriptrunner import get_script_run_ctx
+from numpy.random import default_rng as rng
 
 
 # ### Variable Declarations
@@ -498,8 +499,7 @@ def build_comparison_table_test_0(results):
             "Score": float(score)
         })
 
-    #return pd.DataFrame(rows)
-    return rows
+    return pd.DataFrame(rows)
 
 
 
@@ -739,11 +739,11 @@ if st.button("Plot"):
         
 
         status = classify_duplicate(results)
-#        emoji = {
- #           "GREEN": "🟢",
-  #          "YELLOW": "🟡",
-   #         "RED": "🔴"
-    #    }[status]
+        emoji = {
+            "GREEN": "🟢",
+            "YELLOW": "🟡",
+            "RED": "🔴"
+        }[status]
 
         
         gleif_vars = st.session_state.all_gleif_duplicates[i]
@@ -757,13 +757,13 @@ if st.button("Plot"):
    #             st.session_state.manager_vars
     #        )
 
-            st.write(type(results))
-            st.write(results)
-            st.write([(type(a), type(b)) for a, b in results])
 
             #st.dataframe(styled_table, use_container_width=True)
             #st.table(styled_table)
-            df = build_comparison_table_test_0(results)
+            df = pd.DataFrame(
+                rng(0).standard_normal((50, 20)), columns=("col %d" % i for i in range(20))
+            )
+
             st.dataframe(df)
 
 
