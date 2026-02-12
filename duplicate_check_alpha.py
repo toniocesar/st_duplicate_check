@@ -739,17 +739,17 @@ if st.button("Plot"):
         
 
         status = classify_duplicate(results)
-        emoji = {
-            "GREEN": "🟢",
-            "YELLOW": "🟡",
-            "RED": "🔴"
-        }[status]
+#        emoji = {
+ #           "GREEN": "🟢",
+  #          "YELLOW": "🟡",
+   #         "RED": "🔴"
+    #    }[status]
 
         
         gleif_vars = st.session_state.all_gleif_duplicates[i]
         lei_code = st.session_state.duplicate_leis[i]
 
-        with st.expander(f"🔍{emoji} Duplicate candidate: {lei_code}"):
+        with st.expander(f"🔍 Duplicate candidate: {lei_code}"):
 
 #            styled_table = build_comparison_table_3(
  #               results,
