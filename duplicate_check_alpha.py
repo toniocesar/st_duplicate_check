@@ -37,6 +37,8 @@ from streamlit.runtime.scriptrunner import get_script_run_ctx
 
 # In[4]:
 
+st.set_option("global.disableArrowSerialization", True)
+
 
 if "duplicate_leis" not in st.session_state:
     st.session_state.duplicate_leis = []
