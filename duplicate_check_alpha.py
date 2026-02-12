@@ -1,19 +1,6 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# # Duplicate Check (LEI-Manager)
-
-# In[2]:
-
-
-# O file que estamos usando aqui é o Auftrag 850530
-
-
-# ### Imports
-
-# In[3]:
-
-
 from bs4 import BeautifulSoup
 import requests
 import json
@@ -35,8 +22,6 @@ from numpy.random import default_rng as rng
 
 # ### Variable Declarations
 
-# In[4]:
-
 
 if "duplicate_leis" not in st.session_state:
     st.session_state.duplicate_leis = []
@@ -46,11 +31,9 @@ if "all_gleif_duplicates" not in st.session_state:
     st.session_state.all_gleif_duplicates = []
     all_gleif_duplicates = st.session_state.all_gleif_duplicates
 
-
 if "all_results" not in st.session_state:
     st.session_state.all_results = []
     all_results = st.session_state.all_results
-
 
 if "gleif_variables" not in st.session_state:
     st.session_state.gleif_variables = {}
@@ -73,57 +56,30 @@ FEATURE_KEY_MAP = {
 }
 
 
-# ### Reading of dictionaries (later optimize this using cache for streamlit
-
-# In[5]:
+# Reading of dictionaries
 
 
-try:
-    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-except NameError:
-    # Estamos no Jupyter ou console interativo
-    BASE_DIR = os.getcwd()
-
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(BASE_DIR, "data")
 
-df_gleif_authority = pd.read_csv(
-    os.path.join(DATA_DIR, "GLEIF_authority_dictionary.csv")
-)
+# Functions
 
-print(df_gleif_authority.head())
+@st.cache_data
+def load_gleif_authority():
+    return pd.read_csv(
+        os.path.join(DATA_DIR, "GLEIF_authority_dictionary.csv")
+    )
 
-
-# In[6]:
-
-
-#df_gleif_authority = pd.read_csv(r"C:\Users\AC\Documents\EQS\Automation Project\Dictionaries\GLEIF_authority_dictionary.csv")
+df_gleif_authority = load_gleif_authority()
 
 
-# In[30]:
+@st.cache_data
+def load_legal_form_dictionary():
+    return pd.read_excel(
+        os.path.join(DATA_DIR, "GLEIF_legal_form_dictionary.xlsx")
+    )
 
-
-try:
-    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-except NameError:
-    # Estamos no Jupyter ou console interativo
-    BASE_DIR = os.getcwd()
-
-DATA_DIR = os.path.join(BASE_DIR, "data")
-
-df_legal_form = pd.read_excel(
-    os.path.join(DATA_DIR, "GLEIF_legal_form_dictionary.xlsx")
-)
-
-
-# In[8]:
-
-
-#df_legal_form = pd.read_excel(r"C:\Users\AC\Documents\EQS\Automation Project\Dictionaries\GLEIF_legal_form_dictionary.xlsx") 
-
-
-# ### Functions
-
-# In[9]:
+df_legal_form = load_legal_form_dictionary()
 
 
 def duplicate_check (lei: str):
@@ -134,7 +90,7 @@ def duplicate_check (lei: str):
 
     page = requests.get(url)
     if page.status_code != 200:
-        print(f"\n\n ********** Erro ao buscar LEI {lei} — status {page.status_code} ********** \n\n")
+        print(f"\n\n ********** Error searching for LEI {lei} — status {page.status_code} ********** \n\n")
         st.write(f"\n\n ********** Error searching for LEI {lei} — status {page.status_code} ********** \n\n")
         return
 
@@ -189,9 +145,6 @@ def duplicate_check (lei: str):
     return gleif_variables
 
 
-# In[10]:
-
-
 def concat_address_fields(address: dict) -> str:
     ignore_keys = {"language", "region", "country"}
     parts = []
@@ -213,19 +166,12 @@ def concat_address_fields(address: dict) -> str:
 
     return ", ".join(parts)
 
-
-# In[11]:
-
-
 def run_duplicate_checks():
     st.session_state.all_gleif_duplicates = []
     for lei in st.session_state.duplicate_leis:
         result = duplicate_check(lei)
         if result is not None:
             st.session_state.all_gleif_duplicates.append(result)
-
-
-# In[12]:
 
 
 def parse_lei_manager(text_lei_manager, debug=False):
@@ -318,9 +264,6 @@ def parse_lei_manager(text_lei_manager, debug=False):
     return manager_vars
 
 
-# In[13]:
-
-
 def generate_results():
 
     st.session_state.all_results = []
@@ -349,17 +292,11 @@ def generate_results():
     return st.session_state.all_results
 
 
-# In[14]:
-
-
 def is_streamlit_running():
     try:
         return get_script_run_ctx() is not None
     except:
         return False
-
-
-# In[29]:
 
 
 def score_color(feature, value):
@@ -368,21 +305,18 @@ def score_color(feature, value):
 
     if feature == "Date (delta)":
         if value <= 7:
-            return "background-color: #c6efce"   # verde
+            return "background-color: #ffc7ce"   # vermelho
         elif value <= 30:
             return "background-color: #ffeb9c"   # amarelo
         else:
-            return "background-color: #ffc7ce"   # vermelho
+            return "background-color: #c6efce"   # verde
     else:
         if value >= 90:
-            return "background-color: #c6efce"
+            return "background-color: #ffc7ce"
         elif value >= 70:
             return "background-color: #ffeb9c"
         else:
-            return "background-color: #ffc7ce"
-
-
-# In[28]:
+            return "background-color: #c6efce"
 
 
 def build_comparison_table(results, gleif_vars, manager_vars):
@@ -502,22 +436,6 @@ def build_comparison_table_3(results, gleif_vars, manager_vars):
 
     return df
 
-def build_comparison_table_test_0(results):
-
-    rows = []
-
-    for feature, score in results:
-        rows.append({
-            "Feature": str(feature),
-            "Score": float(score)
-        })
-
-    return pd.DataFrame(rows)
-
-
-
-# In[15]:
-
 
 def plot_scores(scores_list, title="Feature Similarity Scores"):
 
@@ -585,9 +503,6 @@ def plot_scores(scores_list, title="Feature Similarity Scores"):
         plt.show()
 
 
-# In[31]:
-
-
 def classify_duplicate(results):
     """
     Classifica um duplicate usando todas as features disponíveis.
@@ -607,16 +522,16 @@ def classify_duplicate(results):
         return "UNKNOWN"
 
     # =========================
-    # 🟢 PROVÁVEL DUPLICATA
+    # 🔴 PROVÁVEL DUPLICATA
     # =========================
     if (
         legal_name >= 90
         and address >= 80
-        and date <= 7
+        and date <= 30
         and (reg_ID is None or reg_ID >= 95)
         and (legal_form is None or legal_form >= 80)
     ):
-        return "GREEN"
+        return "RED"
 
     # =========================
     # 🟡 POSSÍVEL DUPLICATA
@@ -631,28 +546,16 @@ def classify_duplicate(results):
         return "YELLOW"
 
     # =========================
-    # 🔴 POUCO PROVÁVEL
+    # 🟢 POUCO PROVÁVEL
     # =========================
-    return "RED"
+    return "GREEN"
 
-
-# ### Insert Message Below
-
-# In[16]:
-
+# Buttons and Textareas
 
 if st.button("Reset Variables"):
     st.session_state.clear()
     st.success("All variables have been reset")
 
-
-# In[17]:
-
-
-
-
-
-# In[25]:
 
 
 st.subheader("Duplicates LEIs")
@@ -682,38 +585,6 @@ if st.button("Process duplicates"):
         st.warning("Please paste some text first.")
 
 
-# In[ ]:
-
-
-
-
-
-# In[19]:
-
-
-#duplicate_leis = re.findall(pattern, duplicate_message, flags=re.MULTILINE)
-#print(duplicate_leis)
-
-
-# In[20]:
-
-
-#len(duplicate_leis)
-
-
-# ### Run Web Scraping (GLEIF Website)
-
-# In[ ]:
-
-
-
-
-
-# ### LEI-Manager Data-extraction
-
-# In[26]:
-
-
 st.subheader("LEI Manager Data")
 
 manager_text = st.text_area(
@@ -734,19 +605,10 @@ if st.button("Process LEI Manager"):
         st.warning("Please paste the LEI Manager text first.")
 
 
-# ### Matching
-
-# In[33]:
-
-
 if st.button("Plot"):
 
     st.success("Plot button was pressed")
-
     all_results = generate_results()
-    
-
-    
     
     for i, results in enumerate(all_results):
         
@@ -762,7 +624,7 @@ if st.button("Plot"):
         gleif_vars = st.session_state.all_gleif_duplicates[i]
         lei_code = st.session_state.duplicate_leis[i]
 
-        with st.expander(f"🔍 Duplicate candidate: {lei_code}"):
+        with st.expander(f"{emoji} Duplicate candidate: {lei_code}"):
 
             styled_table = build_comparison_table(
                 results,
@@ -770,15 +632,4 @@ if st.button("Plot"):
                 st.session_state.manager_vars
             )
 
-            #st.table(pd.DataFrame({"A": ["x"], "B": ["y"]}))
             st.dataframe(styled_table, use_container_width=True)
-            #st.table(styled_table)
-
-
-
-
-# In[ ]:
-
-
-
-
