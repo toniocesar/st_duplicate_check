@@ -757,14 +757,10 @@ if st.button("Plot"):
    #             st.session_state.manager_vars
     #        )
 
-
+            st.table(pd.DataFrame({"A": ["x"], "B": ["y"]}))
             #st.dataframe(styled_table, use_container_width=True)
             #st.table(styled_table)
-            df = pd.DataFrame(
-                rng(0).standard_normal((50, 20)), columns=("col %d" % i for i in range(20))
-            )
 
-            st.table(df)
 
 
 
