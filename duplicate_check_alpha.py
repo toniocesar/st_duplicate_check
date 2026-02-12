@@ -756,7 +756,7 @@ if st.button("Plot"):
 
             #st.dataframe(styled_table, use_container_width=True)
             #st.table(styled_table)
-            df = build_comparison_table_test_0(results))
+            df = build_comparison_table_test_0(results)
             st.table(df)
 
 
