@@ -748,11 +748,11 @@ if st.button("Plot"):
 
         with st.expander(f"🔍{emoji} Duplicate candidate: {lei_code}"):
 
-            styled_table = build_comparison_table_3(
-                results,
-                gleif_vars,
-                st.session_state.manager_vars
-            )
+#            styled_table = build_comparison_table_3(
+ #               results,
+  #              gleif_vars,
+   #             st.session_state.manager_vars
+    #        )
 
             #st.dataframe(styled_table, use_container_width=True)
             #st.table(styled_table)
