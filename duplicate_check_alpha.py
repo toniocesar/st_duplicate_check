@@ -488,6 +488,19 @@ def build_comparison_table_3(results, gleif_vars, manager_vars):
 
     return df
 
+def build_comparison_table_test_0(results):
+
+    rows = []
+
+    for feature, score in results:
+        rows.append({
+            "Feature": str(feature),
+            "Score": float(score)
+        })
+
+    return pd.DataFrame(rows)
+
+
 
 # In[15]:
 
@@ -742,7 +755,9 @@ if st.button("Plot"):
             )
 
             #st.dataframe(styled_table, use_container_width=True)
-            st.table(styled_table)
+            #st.table(styled_table)
+            df = build_comparison_table_test_0(results))
+            st.table(df)
 
 
 
