@@ -1,6 +1,6 @@
 beautifulsoup4
 requests
-pandas
+pandas==2.1.4
 pyperclip
 flask
 rapidfuzz
@@ -11,3 +11,6 @@ altair>=4.2.0,<5
 pillow
 standard-imghdr
 openpyxl
+pyarrow==14.0.2
+streamlit==1.31.1
+
