@@ -498,7 +498,8 @@ def build_comparison_table_test_0(results):
             "Score": float(score)
         })
 
-    return pd.DataFrame(rows)
+    #return pd.DataFrame(rows)
+    return rows
 
 
 
@@ -629,6 +630,7 @@ def classify_duplicate(results):
 
 if st.button("Reset Variables"):
     st.session_state.clear()
+    st.success("All variables have been reset")
 
 
 # In[17]:
@@ -762,7 +764,7 @@ if st.button("Plot"):
             #st.dataframe(styled_table, use_container_width=True)
             #st.table(styled_table)
             df = build_comparison_table_test_0(results)
-            #st.table(df)
+            st.table(df)
 
 
 
