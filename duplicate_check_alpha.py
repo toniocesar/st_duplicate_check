@@ -759,6 +759,7 @@ if st.button("Plot"):
             #st.table(styled_table)
             df = build_comparison_table_test_0(results)
             st.table(df)
+            st.write("chegamos aqiu tambem")
 
 
 
