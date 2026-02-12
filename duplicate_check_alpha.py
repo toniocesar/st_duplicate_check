@@ -719,13 +719,6 @@ if st.button("Process LEI Manager"):
         st.warning("Please paste the LEI Manager text first.")
 
 
-
-st.table(
-    pd.DataFrame(
-        {"A": ["teste"], "B": ["ok"]}
-    )
-)
-
 # ### Matching
 
 # In[33]:
