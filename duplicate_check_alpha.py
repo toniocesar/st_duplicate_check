@@ -754,6 +754,7 @@ if st.button("Plot"):
    #             st.session_state.manager_vars
     #        )
 
+            st.write("chegamos aqui")
             #st.dataframe(styled_table, use_container_width=True)
             #st.table(styled_table)
             df = build_comparison_table_test_0(results)
