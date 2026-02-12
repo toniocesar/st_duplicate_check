@@ -20,7 +20,6 @@ import json
 from datetime import datetime, timedelta
 import pandas as pd
 import re
-import pyperclip
 from pprint import pprint
 from flask import Flask, request
 from rapidfuzz import fuzz, process
@@ -139,9 +138,7 @@ def duplicate_check (lei: str):
         st.write(f"\n\n ********** Error searching for LEI {lei} — status {page.status_code} ********** \n\n")
         return
 
-    soup = BeautifulSoup(page.text, 'html')
-    #print(f"DEBUG: str(soup): {str(soup)}")
-    json_data = json.loads(str(soup))
+    json_data = page.json()
 
     #aqui precisa formatar
 
@@ -394,15 +391,14 @@ def build_comparison_table(results, gleif_vars, manager_vars):
 
     for feature, score in results:
 
-        manager_value = manager_vars.get(
-            feature.lower().replace(" ", "_").replace("(delta)", "").strip(),
-            None
-        )
+        key = FEATURE_KEY_MAP.get(feature)
 
-        gleif_value = gleif_vars.get(
-            feature.lower().replace(" ", "_").replace("(delta)", "").strip(),
-            None
-        )
+        manager_value = manager_vars.get(key) if key else None
+        gleif_value = gleif_vars.get(key) if key else None
+
+        # fallback inteligente para Legal Form
+        if feature == "Legal Form" and not gleif_value:
+            gleif_value = gleif_vars.get("legal_form_other")
 
         rows.append({
             "Feature": feature,
@@ -413,12 +409,13 @@ def build_comparison_table(results, gleif_vars, manager_vars):
 
     df = pd.DataFrame(rows)
 
+
     styled_df = df.style.apply(
         lambda row: [
             "",
             "",
             "",
-            score_color(row["Feature"], row["Score"])
+            score_color(row["Feature"], float(row["Score"]))
         ],
         axis=1
     )
@@ -749,14 +746,14 @@ if st.button("Plot"):
 
         with st.expander(f"🔍 Duplicate candidate: {lei_code}"):
 
-#            styled_table = build_comparison_table_3(
- #               results,
-  #              gleif_vars,
-   #             st.session_state.manager_vars
-    #        )
+            styled_table = build_comparison_table(
+                results,
+                gleif_vars,
+                st.session_state.manager_vars
+            )
 
-            st.table(pd.DataFrame({"A": ["x"], "B": ["y"]}))
-            #st.dataframe(styled_table, use_container_width=True)
+            #st.table(pd.DataFrame({"A": ["x"], "B": ["y"]}))
+            st.dataframe(styled_table, use_container_width=True)
             #st.table(styled_table)
 
 
