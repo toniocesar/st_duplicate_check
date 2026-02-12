@@ -731,6 +731,12 @@ if st.button("Plot"):
 
     all_results = generate_results()
     
+    st.table(
+        pd.DataFrame(
+            {"A": ["teste"], "B": ["ok"]}
+        )
+    )
+    
     
     for i, results in enumerate(all_results):
         
