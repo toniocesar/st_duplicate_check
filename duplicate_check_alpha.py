@@ -37,8 +37,6 @@ from streamlit.runtime.scriptrunner import get_script_run_ctx
 
 # In[4]:
 
-st.set_option("global.disableArrowSerialization", True)
-
 
 if "duplicate_leis" not in st.session_state:
     st.session_state.duplicate_leis = []
@@ -771,7 +769,7 @@ if st.button("Plot"):
             #st.dataframe(styled_table, use_container_width=True)
             #st.table(styled_table)
             df = build_comparison_table_test_0(results)
-            st.table(df)
+            #st.table(df)
 
 
 
