@@ -400,6 +400,12 @@ def build_comparison_table(results, gleif_vars, manager_vars):
         if feature == "Legal Form" and not gleif_value:
             gleif_value = gleif_vars.get("legal_form_other")
 
+        # Convert date objects to strings for Arrow serialization
+        if hasattr(manager_value, 'isoformat'):
+            manager_value = manager_value.isoformat()
+        if hasattr(gleif_value, 'isoformat'):
+            gleif_value = gleif_value.isoformat()
+
         rows.append({
             "Feature": feature,
             "LEI Manager": manager_value,
@@ -437,6 +443,12 @@ def build_comparison_table_2(results, gleif_vars, manager_vars):
         if feature == "Legal Form" and not gleif_value:
             gleif_value = gleif_vars.get("legal_form_other")
 
+        # Convert date objects to strings for Arrow serialization
+        if hasattr(manager_value, 'isoformat'):
+            manager_value = manager_value.isoformat()
+        if hasattr(gleif_value, 'isoformat'):
+            gleif_value = gleif_value.isoformat()
+
         rows.append({
             "Feature": feature,
             "LEI Manager": manager_value,
@@ -472,6 +484,12 @@ def build_comparison_table_3(results, gleif_vars, manager_vars):
         # fallback inteligente para Legal Form
         if feature == "Legal Form" and not gleif_value:
             gleif_value = gleif_vars.get("legal_form_other")
+
+        # Convert date objects to strings for Arrow serialization
+        if hasattr(manager_value, 'isoformat'):
+            manager_value = manager_value.isoformat()
+        if hasattr(gleif_value, 'isoformat'):
+            gleif_value = gleif_value.isoformat()
 
         rows.append({
             "Feature": feature,
