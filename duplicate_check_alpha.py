@@ -764,7 +764,7 @@ if st.button("Plot"):
                 rng(0).standard_normal((50, 20)), columns=("col %d" % i for i in range(20))
             )
 
-            st.dataframe(df)
+            st.table(df)
 
 
 
