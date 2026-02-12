@@ -352,9 +352,9 @@ def build_comparison_table(results, gleif_vars, manager_vars):
 
     styled_df = df.style.apply(
         lambda row: [
-            "",
-            "",
-            "",
+            score_color(row["Feature"], float(row["Score"])),
+            score_color(row["Feature"], float(row["Score"])),
+            score_color(row["Feature"], float(row["Score"])),
             score_color(row["Feature"], float(row["Score"]))
         ],
         axis=1
@@ -394,9 +394,9 @@ def build_comparison_table_2(results, gleif_vars, manager_vars):
 
     styled_df = df.style.apply(
         lambda row: [
-            "",
-            "",
-            "",
+            score_color(row["Feature"], float(row["Score"])),
+            score_color(row["Feature"], float(row["Score"])),
+            score_color(row["Feature"], float(row["Score"])),
             score_color(row["Feature"], float(row["Score"]))
         ],
         axis=1
@@ -435,6 +435,55 @@ def build_comparison_table_3(results, gleif_vars, manager_vars):
     df = pd.DataFrame(rows)
 
     return df
+
+
+def build_comparison_table_4(results, gleif_vars, manager_vars):
+
+    rows = []
+
+    for feature, score in results:
+
+        key = FEATURE_KEY_MAP.get(feature)
+
+        manager_value = manager_vars.get(key) if key else None
+        gleif_value = gleif_vars.get(key) if key else None
+
+        # fallback inteligente para Legal Form
+        if feature == "Legal Form" and not gleif_value:
+            gleif_value = gleif_vars.get("legal_form_other")
+
+        # Convert date objects to strings for Arrow serialization
+        if hasattr(manager_value, 'isoformat'):
+            manager_value = manager_value.isoformat()
+        if hasattr(gleif_value, 'isoformat'):
+            gleif_value = gleif_value.isoformat()
+
+        rows.append({
+            "Feature": feature,
+            "LEI Manager": manager_value,
+            "GLEIF Candidate": gleif_value,
+            "Score": score
+        })
+
+    df = pd.DataFrame(rows)
+    df = df.T  # Transpose the dataframe
+
+    def color_transposed_row(row):
+        """Color each column based on its Score value"""
+        colors = []
+        for col in row.index:
+            # col now represents the original row index (0, 1, 2, 3...)
+            # We need to get the feature name and score from the transposed df
+            feature = df.loc["Feature", col]
+            score = df.loc["Score", col]
+            colors.append(score_color(feature, float(score)))
+        return colors
+
+    styled_df = df.style.apply(color_transposed_row, axis=1)
+
+    return styled_df
+
+    return styled_df
 
 
 def plot_scores(scores_list, title="Feature Similarity Scores"):
@@ -521,15 +570,14 @@ def classify_duplicate(results):
     if legal_name is None or address is None or date is None:
         return "UNKNOWN"
 
+    # No futuro, tornar isso em uma função separada
+
     # =========================
     # 🔴 PROVÁVEL DUPLICATA
     # =========================
     if (
-        legal_name >= 90
-        and address >= 80
-        and date <= 30
-        and (reg_ID is None or reg_ID >= 95)
-        and (legal_form is None or legal_form >= 80)
+        address >= 80
+        or (reg_ID is None or reg_ID >= 95)
     ):
         return "RED"
 
@@ -537,11 +585,8 @@ def classify_duplicate(results):
     # 🟡 POSSÍVEL DUPLICATA
     # =========================
     if (
-        legal_name >= 80
-        and address >= 65
-        and date <= 30
-        and (reg_ID is None or reg_ID >= 80)
-        and (legal_form is None or legal_form >= 60)
+        address >= 65
+        or (reg_ID is None or reg_ID >= 80)
     ):
         return "YELLOW"
 
