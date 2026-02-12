@@ -607,13 +607,32 @@ if st.button("Process LEI Manager"):
 
 if st.button("Plot"):
 
-    st.success("Plot button was pressed")
+    st.write("Initializing plot...")
     all_results = generate_results()
-    
+    status_log = []
+    findings = "No duplicates found! You may aprove the order. See below for more details."
+    is_there_a_duplicate = False
+    for i, results in enumerate(all_results):
+        status = classify_duplicate(results)
+        status_log.append(status)
+        if status == "RED":
+            findings = f"DUPLICATE ALERT: {st.session_state.duplicate_leis[i]}\n"
+            is_there_a_duplicate = True
+            st.error(findings)
+
+    if not is_there_a_duplicate:
+        for status in status_log:
+            if status == "YELLOW":
+                findings = "🟡 Possible duplicates found. Please review the details below before approving the order."
+                st.warning
+                break
+        st.success(findings)
+
+
     for i, results in enumerate(all_results):
         
-
-        status = classify_duplicate(results)
+        status = status_log[i]
+        
         emoji = {
             "GREEN": "🟢",
             "YELLOW": "🟡",
