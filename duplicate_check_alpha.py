@@ -83,6 +83,17 @@ df_legal_form = load_legal_form_dictionary()
 
 
 def duplicate_check (lei: str):
+    """
+    Doesn't actually perform a duplicate check, 
+    but retrieves all relevant information from GLEIF API for a given LEI, 
+    and formats it in a way that can be easily compared to the LEI Manager data.
+    
+    :param lei: lei code to be checked for duplicates (20-character alphanumeric string)
+    :type lei: str
+
+    returns:
+    - gleif_variables (dict): dicionário contendo as variáveis extraídas da API
+    """
 
     gleif_variables = {}
     url = f"{url_stem}{lei}"
@@ -146,6 +157,15 @@ def duplicate_check (lei: str):
 
 
 def concat_address_fields(address: dict) -> str:
+    '''
+    Concatenates the relevant fields of the address dictionary into a single string, 
+    while ignoring certain keys and handling None values and lists appropriately.
+    
+    :param address: Address dictionary containing various address fields
+    :type address: dict
+    :return: Description
+    :rtype: str
+    '''
     ignore_keys = {"language", "region", "country"}
     parts = []
 
@@ -167,6 +187,13 @@ def concat_address_fields(address: dict) -> str:
     return ", ".join(parts)
 
 def run_duplicate_checks():
+    """
+    Runs duplicate checks for all LEIs found in the duplicates message, 
+    and stores the results in session state.
+
+    Important: the duplicate_check function doens't really perform a duplicate check!!
+    This needs to be addressed in the future. 
+    """
     st.session_state.all_gleif_duplicates = []
     for lei in st.session_state.duplicate_leis:
         result = duplicate_check(lei)
@@ -177,14 +204,15 @@ def run_duplicate_checks():
 def parse_lei_manager(text_lei_manager, debug=False):
 
     """
-    Extrai informações do texto do LEI Manager.
+    Extracts relevant information from the LEI Manager text and 
+    stores it in a dictionary for easy comparison with GLEIF data.
 
-    Parâmetros:
-    - text_lei_manager (str): texto completo do LEI Manager
-    - debug (bool): se True, printa os valores extraídos
+    Parameters:
+    - text_lei_manager (str): full text of the LEI Manager
+    - debug (bool): if True, prints the extracted values
 
-    Retorna:
-    - manager_vars (dict): dicionário com todas as variáveis extraídas
+    Returns:
+    - manager_vars (dict): dictionary containing all extracted variables
     """
     manager_vars = {}
 
@@ -206,6 +234,11 @@ def parse_lei_manager(text_lei_manager, debug=False):
     ra_entity_id_match = re.search(r"Registration Authority Entity ID:(.+)", text_lei_manager)
     manager_ra_entity_id = ra_entity_id_match.group(1).strip() if ra_entity_id_match else None
     manager_vars["reg_ID"] = manager_ra_entity_id
+
+    # Authority ID (The authority itself)
+    authority_ID_match = re.search(r"Registration Authority ID:.*?\(\s*([A-Z0-9]+)\s*\)", text_lei_manager)
+    manager_authority_ID = authority_ID_match.group(1).strip() if authority_ID_match else None
+    manager_vars["authority_ID"] = manager_authority_ID
 
     # Legal Form
     legal_form_match = re.search(r"Legal Form:(.+?)\s*\(", text_lei_manager)
@@ -263,6 +296,12 @@ def parse_lei_manager(text_lei_manager, debug=False):
 
     return manager_vars
 
+def authority_check():
+    """   
+    Checks if the Registration Authority of the duplicate candidate 
+    is the same as the one of the manager,
+    
+    """
 
 def generate_results():
 
@@ -554,7 +593,11 @@ def plot_scores(scores_list, title="Feature Similarity Scores"):
 
 def classify_duplicate(results):
     """
-    Classifica um duplicate usando todas as features disponíveis.
+    Classifies duplicate candidates based on their similarity scores for key features,
+    using predefined thresholds to determine if they are 
+        -likely duplicates (RED), 
+        -possible duplicates (YELLOW), or 
+        -unlikely duplicates (GREEN). 
     Retorna: GREEN, YELLOW ou RED
     """
 
@@ -569,8 +612,6 @@ def classify_duplicate(results):
     # Se faltar algo essencial
     if legal_name is None or address is None or date is None:
         return "UNKNOWN"
-
-    # No futuro, tornar isso em uma função separada
 
     # =========================
     # 🔴 PROVÁVEL DUPLICATA
@@ -595,7 +636,7 @@ def classify_duplicate(results):
     # =========================
     return "GREEN"
 
-# Buttons and Textareas
+# Buttons and TextAreas
 
 if st.button("Reset Variables"):
     st.session_state.clear()
@@ -638,19 +679,22 @@ manager_text = st.text_area(
 )
 
 if st.button("Process LEI Manager"):
+    
     if manager_text.strip():
         st.session_state.manager_vars = parse_lei_manager(manager_text)
 
         if st.session_state.manager_vars["legal_name"] is not None:
             st.success("LEI Manager information extracted successfully")
         else:
+            # Usually the most common reason for this is the 
+            # LEI Manager's languagenot being changed to english
             st.warning("Data not found. Check if your lei-manager is in english")
 
     else:
         st.warning("Please paste the LEI Manager text first.")
 
 
-if st.button("Plot"):
+if st.button("Check Duplicates"):
 
     st.write("Initializing plot...")
     all_results = generate_results()
@@ -669,7 +713,7 @@ if st.button("Plot"):
         for status in status_log:
             if status == "YELLOW":
                 findings = "🟡 Possible duplicates found. Please review the details below before approving the order."
-                st.warning
+                st.warning(findings)
                 break
         st.success(findings)
 
