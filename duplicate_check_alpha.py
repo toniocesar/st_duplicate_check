@@ -48,6 +48,7 @@ pattern = r'^[A-Z0-9]{20}$'
 url_stem = "https://api.gleif.org/api/v1/lei-records/"
 
 FEATURE_KEY_MAP = {
+    "Authority ID": "authority_ID",
     "RegistrationID": "reg_ID",
     "Legal Name": "legal_name",
     "Address": "address",
@@ -297,12 +298,26 @@ def parse_lei_manager(text_lei_manager, debug=False):
 
     return manager_vars
 
-def authority_check():
-    """   
-    Checks if the Registration Authority of the duplicate candidate 
-    is the same as the one of the manager,
-    
+def authority_ID_check(gleif_authority_ID, manager_authority_ID):
     """
+    Checks if the authority IDs from GLEIF and the LEI Manager match.
+        -If they are the same: returns 100
+        -If they are different: returns 0
+        -If one of them is RA777777, RA888888 or RA999999: returns 50
+    
+    :param gleif_authority_ID: Description
+    :param manager_authority_ID: Description
+    """
+
+    if gleif_authority_ID in {"RA777777", "RA888888", "RA999999"} or manager_authority_ID in {"RA777777", "RA888888", "RA999999"}:
+        return 50  # N/A, não é possível comparar
+    authority_ID_score = fuzz.ratio(gleif_authority_ID, manager_authority_ID)
+    if authority_ID_score == 100:
+        return authority_ID_score # returns 100 if they are the same
+    elif authority_ID_score is not None and authority_ID_score < 100:
+        return 0
+    
+
 
 def generate_results():
 
@@ -320,10 +335,11 @@ def generate_results():
         legal_form_short_score = fuzz.partial_ratio(str(gleif_variables["legal_form_short"]).lower(), str(manager_vars["legal_form"]).lower().strip())
         legal_form_other_score = fuzz.partial_ratio(str(gleif_variables["legal_form_other"]).lower(), str(manager_vars["legal_form"]).lower().strip())
 
-        authority_ID_score = fuzz.ratio(str(gleif_variables["authority_ID"]), str(manager_vars["authority_ID"])) if gleif_variables.get("authority_ID") and manager_vars.get("authority_ID") else None
-        st.write(f"Authority ID similarity score: {authority_ID_score}")
+        authority_ID_score = authority_ID_check(str(gleif_variables["authority_ID"]), str(manager_vars["authority_ID"]))
+        #authority_ID_score = fuzz.ratio(str(gleif_variables["authority_ID"]), str(manager_vars["authority_ID"])) if gleif_variables.get("authority_ID") and manager_vars.get("authority_ID") else None
 
         results = [
+            ("Authority ID", authority_ID_score), # Not lower-cased, needs to be precise
             ("RegistrationID", fuzz.ratio(str(gleif_variables["reg_ID"]), str(manager_vars["reg_ID"]))), # Not lower-cased, needs to be precise
             ("Legal Name", fuzz.ratio(str(gleif_variables["legal_name"]).lower(), str(manager_vars["legal_name"]).lower())), # return best match between legal-name and trade-name 
             ("Date (delta)", abs(gleif_variables["date"].date()-manager_vars["date"]).days), # absolute date-difference in days
@@ -348,6 +364,14 @@ def is_streamlit_running():
 def score_color(feature, value):
     if value is None:
         return ""
+    
+    if feature == "Authority ID":
+        if value == 0:
+            return "background-color: #ffc7ce"   # vermelho se não for identico
+        elif value == 100:
+            return "background-color: #c6efce"   # verde somente se for identico
+        else:
+            return ""   # sem cor para casos como RA777777, RA888888 ou RA999999
 
     if feature == "Date (delta)":
         if value <= 7:
@@ -382,9 +406,11 @@ def build_comparison_table(results, gleif_vars, manager_vars):
 
         # Convert date objects to strings for Arrow serialization
         if hasattr(manager_value, 'isoformat'):
-            manager_value = manager_value.isoformat()
+            iso_str = manager_value.isoformat()
+            manager_value = iso_str[:10]  # Truncate to YYYY-MM-DD
         if hasattr(gleif_value, 'isoformat'):
-            gleif_value = gleif_value.isoformat()
+            iso_str = gleif_value.isoformat()
+            gleif_value = iso_str[:10]  # Truncate to YYYY-MM-DD
 
         rows.append({
             "Feature": feature,
@@ -425,9 +451,11 @@ def build_comparison_table_2(results, gleif_vars, manager_vars):
 
         # Convert date objects to strings for Arrow serialization
         if hasattr(manager_value, 'isoformat'):
-            manager_value = manager_value.isoformat()
+            iso_str = manager_value.isoformat()
+            manager_value = iso_str[:10]  # Truncate to YYYY-MM-DD
         if hasattr(gleif_value, 'isoformat'):
-            gleif_value = gleif_value.isoformat()
+            iso_str = gleif_value.isoformat()
+            gleif_value = iso_str[:10]  # Truncate to YYYY-MM-DD
 
         rows.append({
             "Feature": feature,
@@ -467,9 +495,11 @@ def build_comparison_table_3(results, gleif_vars, manager_vars):
 
         # Convert date objects to strings for Arrow serialization
         if hasattr(manager_value, 'isoformat'):
-            manager_value = manager_value.isoformat()
+            iso_str = manager_value.isoformat()
+            manager_value = iso_str[:10]  # Truncate to YYYY-MM-DD
         if hasattr(gleif_value, 'isoformat'):
-            gleif_value = gleif_value.isoformat()
+            iso_str = gleif_value.isoformat()
+            gleif_value = iso_str[:10]  # Truncate to YYYY-MM-DD
 
         rows.append({
             "Feature": feature,
@@ -500,9 +530,11 @@ def build_comparison_table_4(results, gleif_vars, manager_vars):
 
         # Convert date objects to strings for Arrow serialization
         if hasattr(manager_value, 'isoformat'):
-            manager_value = manager_value.isoformat()
+            iso_str = manager_value.isoformat()
+            manager_value = iso_str[:10]  # Truncate to YYYY-MM-DD
         if hasattr(gleif_value, 'isoformat'):
-            gleif_value = gleif_value.isoformat()
+            iso_str = gleif_value.isoformat()
+            gleif_value = iso_str[:10]  # Truncate to YYYY-MM-DD
 
         rows.append({
             "Feature": feature,
@@ -610,6 +642,7 @@ def classify_duplicate(results):
 
     scores = {feature: score for feature, score in results}
 
+    authority_ID = scores.get("Authority ID")
     reg_ID = scores.get("RegistrationID")
     legal_name = scores.get("Legal Name")
     address = scores.get("Address")
@@ -635,8 +668,9 @@ def classify_duplicate(results):
     if (
         address >= 65
         or (reg_ID is None or reg_ID >= 80)
+        or (authority_ID is not None and authority_ID == 0)
     ):
-        return "YELLOW"
+        return "YELLOW"  
 
     # =========================
     # 🟢 POUCO PROVÁVEL
@@ -702,7 +736,7 @@ if st.button("Process LEI Manager"):
 
 if st.button("Check Duplicates"):
 
-    st.write("Initializing plot...")
+    st.write("Initializing duplicate check...")
     all_results = generate_results()
     status_log = []
     findings = "No duplicates found! You may aprove the order. See below for more details."
@@ -723,8 +757,11 @@ if st.button("Check Duplicates"):
             if status == "YELLOW":
                 findings = "🟡 Possible duplicates found. Please review the details below before approving the order."
                 st.warning(findings)
+                is_there_a_duplicate = True
                 break
-        st.success(findings)
+
+        if not is_there_a_duplicate:
+            st.success(findings)
 
 
     for i, results in enumerate(all_results):
