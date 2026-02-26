@@ -412,8 +412,13 @@ def build_comparison_table(results, gleif_vars, manager_vars):
             iso_str = gleif_value.isoformat()
             gleif_value = iso_str[:10]  # Truncate to YYYY-MM-DD
 
+        # Add warning indicator for mismatched Authority ID
+        feature_display = feature
+        if feature == "Authority ID" and score == 0:
+            feature_display = feature + " ⚠️ Different"
+
         rows.append({
-            "Feature": feature,
+            "Feature": feature_display,
             "LEI Manager": manager_value,
             "GLEIF Candidate": gleif_value,
             "Score": score
@@ -424,10 +429,10 @@ def build_comparison_table(results, gleif_vars, manager_vars):
 
     styled_df = df.style.apply(
         lambda row: [
-            score_color(row["Feature"], float(row["Score"])),
-            score_color(row["Feature"], float(row["Score"])),
-            score_color(row["Feature"], float(row["Score"])),
-            score_color(row["Feature"], float(row["Score"]))
+            score_color(row["Feature"].split(" ⚠️")[0], float(row["Score"])),
+            score_color(row["Feature"].split(" ⚠️")[0], float(row["Score"])),
+            score_color(row["Feature"].split(" ⚠️")[0], float(row["Score"])),
+            score_color(row["Feature"].split(" ⚠️")[0], float(row["Score"]))
         ],
         axis=1
     )
@@ -457,8 +462,13 @@ def build_comparison_table_2(results, gleif_vars, manager_vars):
             iso_str = gleif_value.isoformat()
             gleif_value = iso_str[:10]  # Truncate to YYYY-MM-DD
 
+        # Add warning indicator for mismatched Authority ID
+        feature_display = feature
+        if feature == "Authority ID" and score == 0:
+            feature_display = feature + " ⚠️ Different"
+
         rows.append({
-            "Feature": feature,
+            "Feature": feature_display,
             "LEI Manager": manager_value,
             "GLEIF Candidate": gleif_value,
             "Score": score
@@ -468,10 +478,10 @@ def build_comparison_table_2(results, gleif_vars, manager_vars):
 
     styled_df = df.style.apply(
         lambda row: [
-            score_color(row["Feature"], float(row["Score"])),
-            score_color(row["Feature"], float(row["Score"])),
-            score_color(row["Feature"], float(row["Score"])),
-            score_color(row["Feature"], float(row["Score"]))
+            score_color(row["Feature"].split(" ⚠️")[0], float(row["Score"])),
+            score_color(row["Feature"].split(" ⚠️")[0], float(row["Score"])),
+            score_color(row["Feature"].split(" ⚠️")[0], float(row["Score"])),
+            score_color(row["Feature"].split(" ⚠️")[0], float(row["Score"]))
         ],
         axis=1
     )
@@ -501,8 +511,13 @@ def build_comparison_table_3(results, gleif_vars, manager_vars):
             iso_str = gleif_value.isoformat()
             gleif_value = iso_str[:10]  # Truncate to YYYY-MM-DD
 
+        # Add warning indicator for mismatched Authority ID
+        feature_display = feature
+        if feature == "Authority ID" and score == 0:
+            feature_display = feature + " ⚠️ Different"
+
         rows.append({
-            "Feature": feature,
+            "Feature": feature_display,
             "LEI Manager": manager_value,
             "GLEIF Candidate": gleif_value,
             "Score": score
@@ -536,8 +551,13 @@ def build_comparison_table_4(results, gleif_vars, manager_vars):
             iso_str = gleif_value.isoformat()
             gleif_value = iso_str[:10]  # Truncate to YYYY-MM-DD
 
+        # Add warning indicator for mismatched Authority ID
+        feature_display = feature
+        if feature == "Authority ID" and score == 0:
+            feature_display = feature + " ⚠️ Different"
+
         rows.append({
-            "Feature": feature,
+            "Feature": feature_display,
             "LEI Manager": manager_value,
             "GLEIF Candidate": gleif_value,
             "Score": score
@@ -554,7 +574,9 @@ def build_comparison_table_4(results, gleif_vars, manager_vars):
             # We need to get the feature name and score from the transposed df
             feature = df.loc["Feature", col]
             score = df.loc["Score", col]
-            colors.append(score_color(feature, float(score)))
+            # Strip warning emoji from feature name before passing to score_color
+            base_feature = feature.split(" ⚠️")[0]
+            colors.append(score_color(base_feature, float(score)))
         return colors
 
     styled_df = df.style.apply(color_transposed_row, axis=1)
@@ -764,6 +786,19 @@ if st.button("Check Duplicates"):
             st.success(findings)
 
 
+    # Check if any candidate has a different authority ID
+    has_authority_mismatch = False
+    for results in all_results:
+        authority_id_score = results[0][1] if results and results[0][0] == "Authority ID" else None
+        if authority_id_score == 0:
+            has_authority_mismatch = True
+            break
+    
+    # Show single warning if any authority mismatches exist
+    if has_authority_mismatch:
+        st.warning("⚠️ **One or more candidates have a DIFFERENT Registration Authority ID.**  These should be checked individually.")
+
+
     for i, results in enumerate(all_results):
         
         status = status_log[i]
@@ -777,8 +812,12 @@ if st.button("Check Duplicates"):
         
         gleif_vars = all_gleif_duplicates[i]
         lei_code = duplicate_leis[i]
+        
+        # Check if Authority ID is 0 (different)
+        authority_id_score = results[0][1] if results and results[0][0] == "Authority ID" else None
+        authority_warning = " ⚠️ DIFFERENT AUTHORITY" if authority_id_score == 0 else ""
 
-        with st.expander(f"{emoji} Duplicate candidate: {lei_code}"):
+        with st.expander(f"{emoji} Duplicate candidate: {lei_code}{authority_warning}"):
 
             styled_table = build_comparison_table(
                 results,
