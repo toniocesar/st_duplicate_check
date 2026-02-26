@@ -97,7 +97,7 @@ def duplicate_check (lei: str):
 
     gleif_variables = {}
     url = f"{url_stem}{lei}"
-    print(url)
+    #print(url)
 
     page = requests.get(url)
     if page.status_code != 200:
@@ -195,7 +195,8 @@ def run_duplicate_checks():
     This needs to be addressed in the future. 
     """
     st.session_state.all_gleif_duplicates = []
-    for lei in st.session_state.duplicate_leis:
+    duplicate_leis = st.session_state.duplicate_leis
+    for lei in duplicate_leis:
         result = duplicate_check(lei)
         if result is not None:
             st.session_state.all_gleif_duplicates.append(result)
@@ -306,21 +307,27 @@ def authority_check():
 def generate_results():
 
     st.session_state.all_results = []
+    
     all_results = []
+    manager_vars = st.session_state.manager_vars
+    all_gleif_duplicates = st.session_state.all_gleif_duplicates
 
-    for duplicate in st.session_state.all_gleif_duplicates:
+    for duplicate in all_gleif_duplicates:
 
         gleif_variables = duplicate
 
-        legal_form_score = fuzz.partial_ratio(str(gleif_variables["legal_form"]).lower(), str(st.session_state.manager_vars["legal_form"]).lower().strip())
-        legal_form_short_score = fuzz.partial_ratio(str(gleif_variables["legal_form_short"]).lower(), str(st.session_state.manager_vars["legal_form"]).lower().strip())
-        legal_form_other_score = fuzz.partial_ratio(str(gleif_variables["legal_form_other"]).lower(), str(st.session_state.manager_vars["legal_form"]).lower().strip())
+        legal_form_score = fuzz.partial_ratio(str(gleif_variables["legal_form"]).lower(), str(manager_vars["legal_form"]).lower().strip())
+        legal_form_short_score = fuzz.partial_ratio(str(gleif_variables["legal_form_short"]).lower(), str(manager_vars["legal_form"]).lower().strip())
+        legal_form_other_score = fuzz.partial_ratio(str(gleif_variables["legal_form_other"]).lower(), str(manager_vars["legal_form"]).lower().strip())
+
+        authority_ID_score = fuzz.ratio(str(gleif_variables["authority_ID"]), str(manager_vars["authority_ID"])) if gleif_variables.get("authority_ID") and manager_vars.get("authority_ID") else None
+        st.write(f"Authority ID similarity score: {authority_ID_score}")
 
         results = [
-            ("RegistrationID", fuzz.ratio(str(gleif_variables["reg_ID"]), str(st.session_state.manager_vars["reg_ID"]))), # Not lower-cased, needs to be precise
-            ("Legal Name", fuzz.ratio(str(gleif_variables["legal_name"]).lower(), str(st.session_state.manager_vars["legal_name"]).lower())), # return best match between legal-name and trade-name 
-            ("Date (delta)", abs(gleif_variables["date"].date()-st.session_state.manager_vars["date"]).days), # absolute date-difference in days
-            ("Address", fuzz.partial_ratio(str(gleif_variables["address"].lower()), str(st.session_state.manager_vars["address"]).lower())), # lower-cased addresses 
+            ("RegistrationID", fuzz.ratio(str(gleif_variables["reg_ID"]), str(manager_vars["reg_ID"]))), # Not lower-cased, needs to be precise
+            ("Legal Name", fuzz.ratio(str(gleif_variables["legal_name"]).lower(), str(manager_vars["legal_name"]).lower())), # return best match between legal-name and trade-name 
+            ("Date (delta)", abs(gleif_variables["date"].date()-manager_vars["date"]).days), # absolute date-difference in days
+            ("Address", fuzz.partial_ratio(str(gleif_variables["address"].lower()), str(manager_vars["address"]).lower())), # lower-cased addresses 
             ("Legal Form", max(legal_form_score, legal_form_short_score, legal_form_other_score)),
             ]
 
@@ -328,7 +335,7 @@ def generate_results():
         st.session_state.all_results = all_results
         st.session_state.gleif_variables = gleif_variables
 
-    return st.session_state.all_results
+    return all_results
 
 
 def is_streamlit_running():
@@ -681,9 +688,8 @@ manager_text = st.text_area(
 if st.button("Process LEI Manager"):
     
     if manager_text.strip():
-        st.session_state.manager_vars = parse_lei_manager(manager_text)
-
-        if st.session_state.manager_vars["legal_name"] is not None:
+        manager_vars = parse_lei_manager(manager_text)
+        if manager_vars["legal_name"] is not None:
             st.success("LEI Manager information extracted successfully")
         else:
             # Usually the most common reason for this is the 
@@ -701,11 +707,14 @@ if st.button("Check Duplicates"):
     status_log = []
     findings = "No duplicates found! You may aprove the order. See below for more details."
     is_there_a_duplicate = False
+    duplicate_leis = st.session_state.duplicate_leis
+    all_gleif_duplicates = st.session_state.all_gleif_duplicates
+    
     for i, results in enumerate(all_results):
         status = classify_duplicate(results)
         status_log.append(status)
         if status == "RED":
-            findings = f"DUPLICATE ALERT: {st.session_state.duplicate_leis[i]}\n"
+            findings = f"DUPLICATE ALERT: {duplicate_leis[i]}\n"
             is_there_a_duplicate = True
             st.error(findings)
 
@@ -729,8 +738,8 @@ if st.button("Check Duplicates"):
         }[status]
 
         
-        gleif_vars = st.session_state.all_gleif_duplicates[i]
-        lei_code = st.session_state.duplicate_leis[i]
+        gleif_vars = all_gleif_duplicates[i]
+        lei_code = duplicate_leis[i]
 
         with st.expander(f"{emoji} Duplicate candidate: {lei_code}"):
 
