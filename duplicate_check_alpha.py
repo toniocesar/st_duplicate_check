@@ -44,6 +44,65 @@ if "manager_vars" not in st.session_state:
     manager_vars = st.session_state.manager_vars
 
 
+# Sidebar Configuration
+with st.sidebar:
+    # Logo
+    st.image("images/lei-manager-logo.png", use_container_width=True)
+    
+    st.markdown("---")
+    
+    # Description
+    st.subheader("About")
+    st.markdown("""
+    **LEI Duplicate Checker** is a tool designed to identify and analyze potential duplicate LEI (Legal Entity Identifier) records.
+    """)
+    
+    st.markdown("<p style='text-align: center; font-size: 0.75rem; color: gray;'>For EQS employees use only</p>", unsafe_allow_html=True)
+    
+    st.markdown("---")
+    
+    # Help Section
+    if st.button("❓ Help", use_container_width=True):
+        st.markdown("""
+        ### How it works
+        The application compares candidates from a duplicates message against LEI Manager data, using fuzzy matching to evaluate similarities across multiple features:
+        - Registration IDs
+        - Legal Names
+        - Addresses
+        - Creation Dates
+        - Legal Forms
+        - Registration Authorities
+                    
+        ### How to Use
+                    
+        1. **Process Duplicates**: Paste the duplicates message that pops up on the top right of the LEI Manager
+        2. **Process LEI Manager**: Paste the full text from the LEI Manager for the company you're checking against
+        3. **Check Duplicates**: Click to run the comparison and view results
+        
+        ### Results Interpretation
+        
+        - **🔴 RED**: Likely duplicate - high similarity detected
+        - **🟡 YELLOW**: Possible duplicate - moderate similarity or authority mismatch
+        - **🟢 GREEN**: Unlikely duplicate - low similarity
+        
+        ### Scoring
+        
+        - Scores range from 0-100. Values close to 100 indicate high similarity
+        - Date differences are shown in days
+        - Different Authority ID gets flagged (⚠️), since registration IDs from different authorities cannot be compared directly
+        """)
+    
+    st.markdown("---")
+    
+    # Author Credit
+    st.markdown("""
+    <div style="text-align: center; font-size: 0.8rem; color: gray; margin-top: 2rem;">
+    <p><strong>LEI Duplicate Checker</strong></p>
+    <p>Antonio Cesar Berenguer (2026)</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+
 pattern = r'^[A-Z0-9]{20}$'
 url_stem = "https://api.gleif.org/api/v1/lei-records/"
 
@@ -367,9 +426,9 @@ def score_color(feature, value):
     
     if feature == "Authority ID":
         if value == 0:
-            return "background-color: #ffc7ce"   # vermelho se não for identico
+            return "background-color: #ffeb9c"   # amarelo se não for identico
         elif value == 100:
-            return "background-color: #c6efce"   # verde somente se for identico
+            return ""   # sem cor se for identico
         else:
             return ""   # sem cor para casos como RA777777, RA888888 ou RA999999
 
