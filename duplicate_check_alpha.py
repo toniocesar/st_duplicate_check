@@ -19,18 +19,6 @@ import streamlit as st
 from streamlit.runtime.scriptrunner import get_script_run_ctx
 from numpy.random import default_rng as rng
 
-# Check Streamlit version to determine which width parameter to use
-try:
-    # Try using the newer parameter; if it fails, fall back to the older one
-    st_version_parts = st.__version__.split('.')
-    major_version = int(st_version_parts[0])
-    minor_version = int(st_version_parts[1]) if len(st_version_parts) > 1 else 0
-    use_new_width_param = (major_version > 1) or (major_version == 1 and minor_version >= 35)
-except:
-    use_new_width_param = True  # Default to new param if we can't parse version
-
-WIDTH_PARAM = "use_container_width" if use_new_width_param else "use_column_width"
-
 
 # ### Variable Declarations
 
@@ -59,7 +47,7 @@ if "manager_vars" not in st.session_state:
 # Sidebar Configuration
 with st.sidebar:
     # Logo
-    st.image("images/lei-manager-logo.png", **{WIDTH_PARAM: True})
+    st.image("images/lei-manager-logo.png", use_container_width=True)
     
     st.markdown("---")
     
@@ -74,7 +62,7 @@ with st.sidebar:
     st.markdown("---")
     
     # Help Section
-    if st.button("❓ Help"):
+    if st.button("❓ Help", use_container_width=True):
         st.markdown("""
         ### How it works
         The application compares candidates from a duplicates message against LEI Manager data, using fuzzy matching to evaluate similarities across multiple features:
@@ -896,4 +884,4 @@ if st.button("Check Duplicates"):
                 st.session_state.manager_vars
             )
 
-            st.dataframe(styled_table, **{WIDTH_PARAM: True})
+            st.dataframe(styled_table, use_container_width=True)
