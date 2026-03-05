@@ -98,7 +98,7 @@ with st.sidebar:
     st.markdown("""
     <div style="text-align: center; font-size: 0.8rem; color: gray; margin-top: 2rem;">
     <p><strong>LEI Duplicate Checker</strong></p>
-    <p>Antonio Cesar Berenguer (2026)</p>
+    <p>EQS LEI Team (2026)</p>
     </div>
     """, unsafe_allow_html=True)
 
