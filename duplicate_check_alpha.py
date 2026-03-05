@@ -47,7 +47,7 @@ if "manager_vars" not in st.session_state:
 # Sidebar Configuration
 with st.sidebar:
     # Logo
-    st.image("images/lei-manager-logo.png", use_container_width=True)
+    st.image("images/lei-manager-logo.png")
     
     st.markdown("---")
     
@@ -375,6 +375,7 @@ def authority_ID_check(gleif_authority_ID, manager_authority_ID):
         return authority_ID_score # returns 100 if they are the same
     elif authority_ID_score is not None and authority_ID_score < 100:
         return 0
+    return 0  # Fallback: return 0 if score is None or any other case
     
 
 
@@ -884,4 +885,4 @@ if st.button("Check Duplicates"):
                 st.session_state.manager_vars
             )
 
-            st.dataframe(styled_table, use_container_width=True)
+            st.dataframe(styled_table, width="stretch")
