@@ -885,4 +885,4 @@ if st.button("Check Duplicates"):
                 st.session_state.manager_vars
             )
 
-            st.dataframe(styled_table, width="stretch")
+            st.dataframe(styled_table, use_container_width=True)
