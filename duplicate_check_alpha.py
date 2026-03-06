@@ -108,11 +108,11 @@ url_stem = "https://api.gleif.org/api/v1/lei-records/"
 
 FEATURE_KEY_MAP = {
     "Authority ID": "authority_ID",
-    "RegistrationID": "reg_ID",
+    "Registration ID": "reg_ID",
     "Legal Name": "legal_name",
     "Address": "address",
     "ZIP Code": "zipcode",
-    "Date (delta)": "date",   # usado só para exibição
+    "Creation Date": "date",   # usado só para exibição
     "Legal Form": "legal_form"
 }
 
@@ -487,10 +487,10 @@ def generate_results():
         results = [
             ("Authority ID", authority_ID_score),
             ("Legal Name", legal_name_score),
-            ("RegistrationID", reg_ID_score), 
+            ("Registration ID", reg_ID_score), 
             ("Address", address_score), 
             ("ZIP Code", zipcode_score),
-            ("Date (delta)", date_score),
+            ("Creation Date", date_score),
             ("Legal Form", legal_form_score),
             ]
 
@@ -527,7 +527,7 @@ def score_color(feature, value):
         else:
             return ""
 
-    if feature == "Date (delta)":
+    if feature == "Creation Date":
         if value <= 1:
             return "background-color: #ffc7ce"   # vermelho
         elif value <= 7:
@@ -761,7 +761,7 @@ def plot_scores(scores_list, title="Feature Similarity Scores"):
     # Define cores
     colors = []
     for feature, v in zip(features, values):
-        if feature == "Date (delta)":
+        if feature == "Creation Date":
             if v <= 7:
                 colors.append("green")
             elif v <= 30:
@@ -827,11 +827,11 @@ def classify_duplicate(results):
     scores = {feature: score for feature, score in results}
 
     authority_ID = scores.get("Authority ID")
-    reg_ID = scores.get("RegistrationID")
+    reg_ID = scores.get("Registration ID")
     legal_name = scores.get("Legal Name")
     address = scores.get("Address")
     legal_form = scores.get("Legal Form")
-    date = scores.get("Date (delta)")
+    date = scores.get("Creation Date")
     zipcode = scores.get("ZIP Code")
 
     # Se faltar algo essencial
