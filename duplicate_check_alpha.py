@@ -406,7 +406,7 @@ def generate_results():
         address_score = max(address_score_partial, address_score_token_set) if address_score_partial is not None and address_score_token_set is not None else address_score_partial or address_score_token_set
         
         #Date: absolute difference in days
-        date_score = abs((gleif_variables["date"] - manager_vars["date"]).days) if gleif_variables.get("date") and manager_vars.get("date") else None
+        date_score = abs((gleif_variables["date"].date() - manager_vars["date"]).days) if gleif_variables.get("date") and manager_vars.get("date") else None
 
         #Legal Form: We get the highest score among the three legal form variables from GLEIF, since sometimes one of them can be empty while the others are not. We also ignore case and extra spaces for this comparison.
         legal_form_score_main = fuzz.partial_ratio(str(gleif_variables["legal_form"]).lower(), str(manager_vars["legal_form"]).lower().strip())
