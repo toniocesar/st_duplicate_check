@@ -459,9 +459,9 @@ def score_color(feature, value):
         else:
             return "background-color: #c6efce"   # verde
     else:
-        if value >= 90:
+        if value >= 80:
             return "background-color: #ffc7ce"
-        elif value >= 70:
+        elif value >= 65:
             return "background-color: #ffeb9c"
         else:
             return "background-color: #c6efce"
@@ -758,7 +758,7 @@ def classify_duplicate(results):
     # =========================
     if (
         address >= 80
-        or (reg_ID is None or reg_ID >= 95)
+        or (reg_ID is None or reg_ID >= 80)
     ):
         return "RED"
 
@@ -767,7 +767,7 @@ def classify_duplicate(results):
     # =========================
     if (
         address >= 65
-        or (reg_ID is None or reg_ID >= 80)
+        or (reg_ID is None or reg_ID >= 65)
         or (authority_ID is not None and authority_ID == 0)
     ):
         return "YELLOW"  
