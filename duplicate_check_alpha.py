@@ -512,21 +512,18 @@ def score_color(feature, value):
     if value is None:
         return ""
     
+    # Authority ID gets a special treatment. Only yellow (if different) or no-color otherwise.
     if feature == "Authority ID":
         if value == 0:
             return "background-color: #ffeb9c"   # amarelo se não for identico
-        elif value == 100:
-            return ""   # sem cor se for identico
         else:
-            return ""   # sem cor para casos como RA777777, RA888888 ou RA999999
+            return ""# sem cor para casos como RA777777, RA888888 ou RA999999, ou quando são identicos.
         
-    # Para o legal name, não queremos ele vermelho o tempo todo 
-    if feature == "Legal Name":
-        if value >= 95:
-            return "background-color: #ffc7ce"   # vermelho
-        else:
-            return ""
-
+    # Legal Name e Legal Form não precisão de cor
+    if feature == "Legal Name" or feature == "Legal Form":
+        return ""
+    
+    #Creation Date tem uma lógica invertida, quanto menor a diferença de dias, mais parecido é.
     if feature == "Creation Date":
         if value <= 1:
             return "background-color: #ffc7ce"   # vermelho
@@ -535,6 +532,7 @@ def score_color(feature, value):
         else:
             return "background-color: #c6efce"   # verde
         
+    # ZIP Code tem threshold mais rígido, já que é um string tão pequeno    
     if feature == "ZIP Code":
         if value >= 90:
             return "background-color: #ffc7ce" # vermelho
@@ -542,6 +540,9 @@ def score_color(feature, value):
             return "background-color: #ffeb9c" # amarelo
         else:
             return "background-color: #c6efce" # verde
+        
+        
+    # Demais casos (atualmente só Reg_ID e Address):
     else:
         if value >= 80:
             return "background-color: #ffc7ce"
