@@ -130,17 +130,29 @@ def load_gleif_authority():
         os.path.join(DATA_DIR, "GLEIF_authority_dictionary.csv")
     )
 
-df_gleif_authority = load_gleif_authority()
-
-
 @st.cache_data
 def load_legal_form_dictionary():
     return pd.read_excel(
         os.path.join(DATA_DIR, "GLEIF_legal_form_dictionary.xlsx")
     )
 
-df_legal_form = load_legal_form_dictionary()
+@st.cache_data
+def load_RAformat_dictionary():
+    return pd.read_excel(
+        os.path.join(DATA_DIR, "GLEIF_RAformat_dictionary.xlsx")
+    )
 
+@st.cache_data
+def load_zipcode_dictionary():
+    return pd.read_excel(
+        os.path.join(DATA_DIR, "zipcode_dictionary.xlsx"),
+        sheet_name="RegEx_EQS"
+    )
+
+df_legal_form = load_legal_form_dictionary()
+df_gleif_authority = load_gleif_authority()
+df_RA_format = load_RAformat_dictionary()
+df_zipcode = load_zipcode_dictionary()
 
 def duplicate_check (lei: str):
     """
@@ -167,10 +179,9 @@ def duplicate_check (lei: str):
 
     json_data = page.json()
 
-    #aqui precisa formatar
-
     DEFAULT_DATE = datetime(1, 1, 1)
 
+    # GLEIF Date
     gleif_date = json_data["data"]["attributes"]["entity"]["creationDate"]
     if gleif_date is None:
         gleif_date = DEFAULT_DATE
@@ -179,41 +190,81 @@ def duplicate_check (lei: str):
     gleif_variables["date"] = gleif_date
 
 
-    # Aqui precisa do dicionario das authorities
+    # GLEIF authority ID (RA code of the authority that issued the LEI)
     gleif_authority_ID = json_data["data"]["attributes"]["entity"]["registeredAt"]["id"]
     gleif_variables["authority_ID"] = gleif_authority_ID
 
+    # GLEIF authority local name
     gleif_authority_temp = df_gleif_authority.loc[df_gleif_authority["Registration Authority Code"] == gleif_authority_ID, "Local name of organisation responsible for the Register"]
     gleif_authority_local_name= gleif_authority_temp.iloc[0] if not gleif_authority_temp.empty else None
     gleif_variables["authority_local_name"] = gleif_authority_local_name
 
+    # GLEIF Registration ID (RA Entity ID)
     gleif_reg_ID = json_data["data"]["attributes"]["entity"]["registeredAs"]
     gleif_variables["reg_ID"] = gleif_reg_ID
 
+    # GLEIF Legal Name
     gleif_legal_name = json_data["data"]["attributes"]["entity"]["legalName"]["name"]
     gleif_variables["legal_name"] = gleif_legal_name
 
+    # GLEIF Address
     gleif_address_dict = json_data["data"]["attributes"]["entity"]["legalAddress"]
-
     gleif_address = concat_address_fields(gleif_address_dict)
     gleif_variables["address"] = gleif_address
 
-    gleif_legal_form_ID = json_data["data"]["attributes"]["entity"]["legalForm"]["id"]
+    # GLEIF Zipcode (Postal Code)
+    gleif_zipcode = json_data["data"]["attributes"]["entity"]["legalAddress"]["postalCode"]
+    gleif_variables["zipcode"] = gleif_zipcode
 
+    # GLEIF Jurisdiction (Country)
+    gleif_jurisdiction = json_data["data"]["attributes"]["entity"]["jurisdiction"]
+    gleif_variables["jurisdiction"] = gleif_jurisdiction
+
+    # GLEIF Legal Form
+    gleif_legal_form_ID = json_data["data"]["attributes"]["entity"]["legalForm"]["id"]
     gleif_legal_form_temp = df_legal_form.loc[df_legal_form["ELF Code"] == gleif_legal_form_ID, "Entity Legal Form name Local name"]
     gleif_legal_form = gleif_legal_form_temp.iloc[0] if not gleif_legal_form_temp.empty else None
-
-    # Safely extract legal form and its short name (handles empty fields like '8888' and '9999')
     legal_form_short_series = df_legal_form.loc[df_legal_form["ELF Code"] == gleif_legal_form_ID, "Abbreviations Local language"]
     gleif_legal_form_short = legal_form_short_series.iloc[0] if not legal_form_short_series.empty else None
-
     gleif_legal_form_other = json_data["data"]["attributes"]["entity"]["legalForm"]["other"]
-
+    
     gleif_variables["legal_form"] = gleif_legal_form
     gleif_variables["legal_form_short"] = gleif_legal_form_short
     gleif_variables["legal_form_other"] = gleif_legal_form_other
 
     return gleif_variables
+
+
+def extract_zipcode(address: str, jurisdiction_iso: str) -> str:
+    '''
+    Extracts the zipcode from an address string using a regex pattern
+    specific to the jurisdiction (country ISO code).
+    
+    :param address: Address string to search for zipcode
+    :param jurisdiction_iso: Country ISO code (e.g., 'US', 'DE', 'GB')
+    :return: Extracted zipcode or None if not found
+    '''
+    if not address or not jurisdiction_iso:
+        return None
+    
+    # Look up the regex pattern for this jurisdiction
+    regex_row = df_zipcode[df_zipcode["Country ISO code"] == jurisdiction_iso]
+    
+    if regex_row.empty:
+        return None
+    
+    regex_pattern = regex_row.iloc[0]["RegEx"]
+    
+    if not regex_pattern or pd.isna(regex_pattern):
+        return None
+    
+    # Apply the regex to extract the zipcode
+    match = re.search(regex_pattern, address)
+    
+    if match:
+        return match.group(0)
+    
+    return None
 
 
 def concat_address_fields(address: dict) -> str:
@@ -325,6 +376,16 @@ def parse_lei_manager(text_lei_manager, debug=False):
     )
     manager_address = address_match.group(1).strip() if address_match else None
     manager_vars["address"] = manager_address
+
+    #Legal Jurisdiction (Country)
+    jurisdiction_match = re.search(r"Legal Jurisdiction:.*\(([^)]+)\)", text_lei_manager)
+    manager_jurisdiction = jurisdiction_match.group(1).strip() if jurisdiction_match else None
+    manager_vars["jurisdiction"] = manager_jurisdiction
+
+    # Extract Zipcode using jurisdiction ISO code and address
+    manager_zipcode = extract_zipcode(manager_address, manager_jurisdiction) if manager_address and manager_jurisdiction else None
+    manager_vars["zipcode"] = manager_zipcode
+    print(f"Extracted zipcode: {manager_zipcode} from address: {manager_address} and jurisdiction: {manager_jurisdiction}") 
 
     # Contact Partner
     contact_partner_match = re.search(
