@@ -485,8 +485,8 @@ def generate_results():
 
 
         results = [
-            ("Authority ID", authority_ID_score),
             ("Legal Name", legal_name_score),
+            ("Authority ID", authority_ID_score),
             ("Registration ID", reg_ID_score), 
             ("Address", address_score), 
             ("ZIP Code", zipcode_score),
