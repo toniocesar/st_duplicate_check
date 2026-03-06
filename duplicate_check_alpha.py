@@ -391,20 +391,38 @@ def generate_results():
 
         gleif_variables = duplicate
 
-        legal_form_score = fuzz.partial_ratio(str(gleif_variables["legal_form"]).lower(), str(manager_vars["legal_form"]).lower().strip())
+        #Authority ID: Custom Check (see function authority_ID_check)
+        authority_ID_score = authority_ID_check(str(gleif_variables["authority_ID"]), str(manager_vars["authority_ID"]))
+
+        #Reg_ID: Fuzz Ratio
+        reg_ID_score = fuzz.ratio(str(gleif_variables["reg_ID"]), str(manager_vars["reg_ID"])) if gleif_variables.get("reg_ID") and manager_vars.get("reg_ID") else None
+
+        #Legal Name: Fuzz Ratio
+        legal_name_score = fuzz.ratio(str(gleif_variables["legal_name"]).lower(), str(manager_vars["legal_name"]).lower()) if gleif_variables.get("legal_name") and manager_vars.get("legal_name") else None
+        
+        #Address
+        address_score_partial = fuzz.partial_ratio(str(gleif_variables["address"]).lower(), str(manager_vars["address"]).lower()) if gleif_variables.get("address") and manager_vars.get("address") else None
+        address_score_token_set = fuzz.token_set_ratio(str(gleif_variables["address"]).lower(), str(manager_vars["address"]).lower()) if gleif_variables.get("address") and manager_vars.get("address") else None
+        address_score = max(address_score_partial, address_score_token_set) if address_score_partial is not None and address_score_token_set is not None else address_score_partial or address_score_token_set
+        
+        #Date: absolute difference in days
+        date_score = abs((gleif_variables["date"] - manager_vars["date"]).days) if gleif_variables.get("date") and manager_vars.get("date") else None
+
+        #Legal Form: We get the highest score among the three legal form variables from GLEIF, since sometimes one of them can be empty while the others are not. We also ignore case and extra spaces for this comparison.
+        legal_form_score_main = fuzz.partial_ratio(str(gleif_variables["legal_form"]).lower(), str(manager_vars["legal_form"]).lower().strip())
         legal_form_short_score = fuzz.partial_ratio(str(gleif_variables["legal_form_short"]).lower(), str(manager_vars["legal_form"]).lower().strip())
         legal_form_other_score = fuzz.partial_ratio(str(gleif_variables["legal_form_other"]).lower(), str(manager_vars["legal_form"]).lower().strip())
+        legal_form_score = max(legal_form_score_main, legal_form_short_score, legal_form_other_score) if legal_form_score_main is not None and legal_form_short_score is not None and legal_form_other_score is not None else legal_form_score_main or legal_form_short_score or legal_form_other_score
 
-        authority_ID_score = authority_ID_check(str(gleif_variables["authority_ID"]), str(manager_vars["authority_ID"]))
-        #authority_ID_score = fuzz.ratio(str(gleif_variables["authority_ID"]), str(manager_vars["authority_ID"])) if gleif_variables.get("authority_ID") and manager_vars.get("authority_ID") else None
+
 
         results = [
             ("Authority ID", authority_ID_score), # Not lower-cased, needs to be precise
-            ("RegistrationID", fuzz.ratio(str(gleif_variables["reg_ID"]), str(manager_vars["reg_ID"]))), # Not lower-cased, needs to be precise
-            ("Legal Name", fuzz.ratio(str(gleif_variables["legal_name"]).lower(), str(manager_vars["legal_name"]).lower())), # return best match between legal-name and trade-name 
-            ("Date (delta)", abs(gleif_variables["date"].date()-manager_vars["date"]).days), # absolute date-difference in days
-            ("Address", fuzz.partial_ratio(str(gleif_variables["address"].lower()), str(manager_vars["address"]).lower())), # lower-cased addresses 
-            ("Legal Form", max(legal_form_score, legal_form_short_score, legal_form_other_score)),
+            ("RegistrationID", reg_ID_score), # Not lower-cased, needs to be precise
+            ("Legal Name", legal_name_score), # return best match between legal-name and trade-name 
+            ("Date (delta)", date_score), # absolute date-difference in days
+            ("Address", address_score), # lower-cased addresses 
+            ("Legal Form", legal_form_score),
             ]
 
         all_results.append(results)
