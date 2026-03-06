@@ -111,6 +111,7 @@ FEATURE_KEY_MAP = {
     "RegistrationID": "reg_ID",
     "Legal Name": "legal_name",
     "Address": "address",
+    "ZIP Code": "zipcode",
     "Date (delta)": "date",   # usado só para exibição
     "Legal Form": "legal_form"
 }
@@ -256,6 +257,10 @@ def extract_zipcode(address: str, jurisdiction_iso: str) -> str:
     regex_pattern = regex_row.iloc[0]["RegEx"]
     
     if not regex_pattern or pd.isna(regex_pattern):
+        return None
+    
+    # If the pattern is .{1,255}, it's too generic and will match anything - return None
+    if regex_pattern.strip() == ".{1,255}":
         return None
     
     # Apply the regex to extract the zipcode
@@ -475,14 +480,17 @@ def generate_results():
         legal_form_other_score = fuzz.partial_ratio(str(gleif_variables["legal_form_other"]).lower(), str(manager_vars["legal_form"]).lower().strip())
         legal_form_score = max(legal_form_score_main, legal_form_short_score, legal_form_other_score) if legal_form_score_main is not None and legal_form_short_score is not None and legal_form_other_score is not None else legal_form_score_main or legal_form_short_score or legal_form_other_score
 
+        # ZIP Code: Fuzz Ratio
+        zipcode_score = fuzz.ratio(str(gleif_variables["zipcode"]), str(manager_vars["zipcode"])) if gleif_variables.get("zipcode") and manager_vars.get("zipcode") else None
 
 
         results = [
-            ("Authority ID", authority_ID_score), # Not lower-cased, needs to be precise
-            ("RegistrationID", reg_ID_score), # Not lower-cased, needs to be precise
-            ("Legal Name", legal_name_score), # return best match between legal-name and trade-name 
-            ("Date (delta)", date_score), # absolute date-difference in days
-            ("Address", address_score), # lower-cased addresses 
+            ("Authority ID", authority_ID_score),
+            ("Legal Name", legal_name_score),
+            ("RegistrationID", reg_ID_score), 
+            ("Address", address_score), 
+            ("ZIP Code", zipcode_score),
+            ("Date (delta)", date_score),
             ("Legal Form", legal_form_score),
             ]
 
@@ -511,18 +519,33 @@ def score_color(feature, value):
             return ""   # sem cor se for identico
         else:
             return ""   # sem cor para casos como RA777777, RA888888 ou RA999999
+        
+    # Para o legal name, não queremos ele vermelho o tempo todo 
+    if feature == "Legal Name":
+        if value >= 95:
+            return "background-color: #ffc7ce"   # vermelho
+        else:
+            return ""
 
     if feature == "Date (delta)":
-        if value <= 7:
+        if value <= 1:
             return "background-color: #ffc7ce"   # vermelho
-        elif value <= 30:
+        elif value <= 7:
             return "background-color: #ffeb9c"   # amarelo
         else:
             return "background-color: #c6efce"   # verde
+        
+    if feature == "ZIP Code":
+        if value >= 90:
+            return "background-color: #ffc7ce" # vermelho
+        elif value >= 80:
+            return "background-color: #ffeb9c" # amarelo
+        else:
+            return "background-color: #c6efce" # verde
     else:
         if value >= 80:
             return "background-color: #ffc7ce"
-        elif value >= 65:
+        elif value >= 65: # A vantagem do 65 é que quando o PAN for igual, o numero vai dar match de 10 numeros dos 15, no minimo. nesse caso, o fuzz.ratio retorna um valor de 66.666 (2 terços), entao 65 engloba esse caso e mostra amarelo. Mas temos que ver se isso nao vai afetar o resto e deixar muitos falsos positivos.
             return "background-color: #ffeb9c"
         else:
             return "background-color: #c6efce"
@@ -809,6 +832,7 @@ def classify_duplicate(results):
     address = scores.get("Address")
     legal_form = scores.get("Legal Form")
     date = scores.get("Date (delta)")
+    zipcode = scores.get("ZIP Code")
 
     # Se faltar algo essencial
     if legal_name is None or address is None or date is None:
@@ -820,6 +844,7 @@ def classify_duplicate(results):
     if (
         address >= 80
         or (reg_ID is None or reg_ID >= 80)
+        or (zipcode is None or zipcode >= 90)
     ):
         return "RED"
 
@@ -830,6 +855,7 @@ def classify_duplicate(results):
         address >= 65
         or (reg_ID is None or reg_ID >= 65)
         or (authority_ID is not None and authority_ID == 0)
+        or (zipcode is not None and zipcode >= 80)
     ):
         return "YELLOW"  
 
