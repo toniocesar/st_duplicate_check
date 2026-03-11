@@ -534,9 +534,9 @@ def score_color(feature, value):
         
     # ZIP Code tem threshold mais rígido, já que é um string tão pequeno    
     if feature == "ZIP Code":
-        if value >= 90:
+        if value >= 95:
             return "background-color: #ffc7ce" # vermelho
-        elif value >= 80:
+        elif value >= 90:
             return "background-color: #ffeb9c" # amarelo
         else:
             return "background-color: #c6efce" # verde
@@ -845,7 +845,7 @@ def classify_duplicate(results):
     if (
         address >= 80
         or (reg_ID is None or reg_ID >= 80)
-        or (zipcode >= 90)
+        or (zipcode >= 95)
     ):
         return "RED"
 
@@ -855,8 +855,7 @@ def classify_duplicate(results):
     if (
         address >= 65
         or (reg_ID is None or reg_ID >= 65)
-        or (authority_ID is not None and authority_ID == 0)
-        or (zipcode >= 80)
+        or (zipcode >= 90)
     ):
         return "YELLOW"  
 
@@ -929,8 +928,20 @@ if st.button("Check Duplicates"):
     status_log = []
     findings = "No duplicates found! You may aprove the order. See below for more details."
     is_there_a_duplicate = False
+    has_authority_mismatch = False
     duplicate_leis = st.session_state.duplicate_leis
     all_gleif_duplicates = st.session_state.all_gleif_duplicates
+
+    # Check if any candidate has a different authority ID
+    for results in all_results:
+        authority_id_score = results[1][1] if results and len(results) > 1 and results[1][0] == "Authority ID" else None
+        if authority_id_score == 0:
+            has_authority_mismatch = True
+            break
+    
+    # Show single warning if any authority mismatches exist
+    if has_authority_mismatch:
+        st.warning("⚠️ **One or more candidates have a DIFFERENT Registration Authority ID.**  These should be checked individually.")    
     
     for i, results in enumerate(all_results):
         status = classify_duplicate(results)
@@ -948,23 +959,14 @@ if st.button("Check Duplicates"):
                 is_there_a_duplicate = True
                 break
 
-        if not is_there_a_duplicate:
+        if not is_there_a_duplicate and not has_authority_mismatch:
             st.success(findings)
 
 
-    # Check if any candidate has a different authority ID
-    has_authority_mismatch = False
-    for results in all_results:
-        authority_id_score = results[1][1] if results and len(results) > 1 and results[1][0] == "Authority ID" else None
-        if authority_id_score == 0:
-            has_authority_mismatch = True
-            break
-    
-    # Show single warning if any authority mismatches exist
-    if has_authority_mismatch:
-        st.warning("⚠️ **One or more candidates have a DIFFERENT Registration Authority ID.**  These should be checked individually.")
 
 
+
+    # Display results for each candidate with appropriate emojis and warnings
     for i, results in enumerate(all_results):
         
         status = status_log[i]
@@ -980,8 +982,7 @@ if st.button("Check Duplicates"):
         lei_code = duplicate_leis[i]
         
         # Check if Authority ID is 0 (different)
-        authority_id_score = results[1][1] if results and len(results) > 1 and results[1][0] == "Authority ID" else None
-        authority_warning = " ⚠️ DIFFERENT AUTHORITY" if authority_id_score == 0 else ""
+        authority_warning = " ⚠️ DIFFERENT AUTHORITY" if has_authority_mismatch else ""
 
         with st.expander(f"{emoji} Duplicate candidate: {lei_code}{authority_warning}"):
 
