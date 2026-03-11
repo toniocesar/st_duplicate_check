@@ -845,7 +845,7 @@ def classify_duplicate(results):
     if (
         address >= 80
         or (reg_ID is None or reg_ID >= 80)
-        or (zipcode is None or zipcode >= 90)
+        or (zipcode >= 90)
     ):
         return "RED"
 
@@ -856,7 +856,7 @@ def classify_duplicate(results):
         address >= 65
         or (reg_ID is None or reg_ID >= 65)
         or (authority_ID is not None and authority_ID == 0)
-        or (zipcode is not None and zipcode >= 80)
+        or (zipcode >= 80)
     ):
         return "YELLOW"  
 
@@ -955,7 +955,7 @@ if st.button("Check Duplicates"):
     # Check if any candidate has a different authority ID
     has_authority_mismatch = False
     for results in all_results:
-        authority_id_score = results[0][1] if results and results[0][0] == "Authority ID" else None
+        authority_id_score = results[1][1] if results and len(results) > 1 and results[1][0] == "Authority ID" else None
         if authority_id_score == 0:
             has_authority_mismatch = True
             break
@@ -980,7 +980,7 @@ if st.button("Check Duplicates"):
         lei_code = duplicate_leis[i]
         
         # Check if Authority ID is 0 (different)
-        authority_id_score = results[0][1] if results and results[0][0] == "Authority ID" else None
+        authority_id_score = results[1][1] if results and len(results) > 1 and results[1][0] == "Authority ID" else None
         authority_warning = " ⚠️ DIFFERENT AUTHORITY" if authority_id_score == 0 else ""
 
         with st.expander(f"{emoji} Duplicate candidate: {lei_code}{authority_warning}"):
