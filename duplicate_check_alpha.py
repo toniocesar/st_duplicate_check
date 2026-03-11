@@ -20,8 +20,7 @@ from streamlit.runtime.scriptrunner import get_script_run_ctx
 from numpy.random import default_rng as rng
 
 
-# ### Variable Declarations
-
+### Variable Declarations
 
 if "duplicate_leis" not in st.session_state:
     st.session_state.duplicate_leis = []
@@ -119,7 +118,6 @@ FEATURE_KEY_MAP = {
 
 # Reading of dictionaries
 
-
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(BASE_DIR, "data")
 
@@ -155,7 +153,7 @@ df_gleif_authority = load_gleif_authority()
 df_RA_format = load_RAformat_dictionary()
 df_zipcode = load_zipcode_dictionary()
 
-def duplicate_check (lei: str):
+def fetch_gleif_vars(lei: str):
     """
     Doesn't actually perform a duplicate check, 
     but retrieves all relevant information from GLEIF API for a given LEI, 
@@ -302,23 +300,23 @@ def concat_address_fields(address: dict) -> str:
 
     return ", ".join(parts)
 
-def run_duplicate_checks():
+def fetch_all_gleif_vars():
     """
     Runs duplicate checks for all LEIs found in the duplicates message, 
     and stores the results in session state.
 
-    Important: the duplicate_check function doens't really perform a duplicate check!!
+    Important: the fetch_gleif_vars function doens't really perform a duplicate check!!
     This needs to be addressed in the future. 
     """
     st.session_state.all_gleif_duplicates = []
     duplicate_leis = st.session_state.duplicate_leis
     for lei in duplicate_leis:
-        result = duplicate_check(lei)
+        result = fetch_gleif_vars(lei)
         if result is not None:
             st.session_state.all_gleif_duplicates.append(result)
 
 
-def parse_lei_manager(text_lei_manager, debug=False):
+def extract_lei_manager_vars(text_lei_manager, debug=False):
 
     """
     Extracts relevant information from the LEI Manager text and 
@@ -508,7 +506,7 @@ def is_streamlit_running():
         return False
 
 
-def score_color(feature, value):
+def get_feature_row_color(feature, value):
     if value is None:
         return ""
     
@@ -592,162 +590,15 @@ def build_comparison_table(results, gleif_vars, manager_vars):
 
     styled_df = df.style.apply(
         lambda row: [
-            score_color(row["Feature"].split(" ⚠️")[0], float(row["Score"])),
-            score_color(row["Feature"].split(" ⚠️")[0], float(row["Score"])),
-            score_color(row["Feature"].split(" ⚠️")[0], float(row["Score"])),
-            score_color(row["Feature"].split(" ⚠️")[0], float(row["Score"]))
+            get_feature_row_color(row["Feature"].split(" ⚠️")[0], float(row["Score"])),
+            get_feature_row_color(row["Feature"].split(" ⚠️")[0], float(row["Score"])),
+            get_feature_row_color(row["Feature"].split(" ⚠️")[0], float(row["Score"])),
+            get_feature_row_color(row["Feature"].split(" ⚠️")[0], float(row["Score"]))
         ],
         axis=1
     )
 
     return styled_df
-
-def build_comparison_table_2(results, gleif_vars, manager_vars):
-
-    rows = []
-
-    for feature, score in results:
-
-        key = FEATURE_KEY_MAP.get(feature)
-
-        manager_value = manager_vars.get(key) if key else None
-        gleif_value = gleif_vars.get(key) if key else None
-
-        # fallback inteligente para Legal Form
-        if feature == "Legal Form" and not gleif_value:
-            gleif_value = gleif_vars.get("legal_form_other")
-
-        # Convert date objects to strings for Arrow serialization
-        if hasattr(manager_value, 'isoformat'):
-            iso_str = manager_value.isoformat()
-            manager_value = iso_str[:10]  # Truncate to YYYY-MM-DD
-        if hasattr(gleif_value, 'isoformat'):
-            iso_str = gleif_value.isoformat()
-            gleif_value = iso_str[:10]  # Truncate to YYYY-MM-DD
-
-        # Add warning indicator for mismatched Authority ID
-        feature_display = feature
-        if feature == "Authority ID" and score == 0:
-            feature_display = feature + " ⚠️ Different"
-
-        rows.append({
-            "Feature": feature_display,
-            "LEI Manager": manager_value,
-            "GLEIF Candidate": gleif_value,
-            "Score": score
-        })
-
-    df = pd.DataFrame(rows)
-
-    styled_df = df.style.apply(
-        lambda row: [
-            score_color(row["Feature"].split(" ⚠️")[0], float(row["Score"])),
-            score_color(row["Feature"].split(" ⚠️")[0], float(row["Score"])),
-            score_color(row["Feature"].split(" ⚠️")[0], float(row["Score"])),
-            score_color(row["Feature"].split(" ⚠️")[0], float(row["Score"]))
-        ],
-        axis=1
-    )
-
-    return styled_df
-
-def build_comparison_table_3(results, gleif_vars, manager_vars):
-
-    rows = []
-
-    for feature, score in results:
-
-        key = FEATURE_KEY_MAP.get(feature)
-
-        manager_value = manager_vars.get(key) if key else None
-        gleif_value = gleif_vars.get(key) if key else None
-
-        # fallback inteligente para Legal Form
-        if feature == "Legal Form" and not gleif_value:
-            gleif_value = gleif_vars.get("legal_form_other")
-
-        # Convert date objects to strings for Arrow serialization
-        if hasattr(manager_value, 'isoformat'):
-            iso_str = manager_value.isoformat()
-            manager_value = iso_str[:10]  # Truncate to YYYY-MM-DD
-        if hasattr(gleif_value, 'isoformat'):
-            iso_str = gleif_value.isoformat()
-            gleif_value = iso_str[:10]  # Truncate to YYYY-MM-DD
-
-        # Add warning indicator for mismatched Authority ID
-        feature_display = feature
-        if feature == "Authority ID" and score == 0:
-            feature_display = feature + " ⚠️ Different"
-
-        rows.append({
-            "Feature": feature_display,
-            "LEI Manager": manager_value,
-            "GLEIF Candidate": gleif_value,
-            "Score": score
-        })
-
-    df = pd.DataFrame(rows)
-
-    return df
-
-
-def build_comparison_table_4(results, gleif_vars, manager_vars):
-
-    rows = []
-
-    for feature, score in results:
-
-        key = FEATURE_KEY_MAP.get(feature)
-
-        manager_value = manager_vars.get(key) if key else None
-        gleif_value = gleif_vars.get(key) if key else None
-
-        # fallback inteligente para Legal Form
-        if feature == "Legal Form" and not gleif_value:
-            gleif_value = gleif_vars.get("legal_form_other")
-
-        # Convert date objects to strings for Arrow serialization
-        if hasattr(manager_value, 'isoformat'):
-            iso_str = manager_value.isoformat()
-            manager_value = iso_str[:10]  # Truncate to YYYY-MM-DD
-        if hasattr(gleif_value, 'isoformat'):
-            iso_str = gleif_value.isoformat()
-            gleif_value = iso_str[:10]  # Truncate to YYYY-MM-DD
-
-        # Add warning indicator for mismatched Authority ID
-        feature_display = feature
-        if feature == "Authority ID" and score == 0:
-            feature_display = feature + " ⚠️ Different"
-
-        rows.append({
-            "Feature": feature_display,
-            "LEI Manager": manager_value,
-            "GLEIF Candidate": gleif_value,
-            "Score": score
-        })
-
-    df = pd.DataFrame(rows)
-    df = df.T  # Transpose the dataframe
-
-    def color_transposed_row(row):
-        """Color each column based on its Score value"""
-        colors = []
-        for col in row.index:
-            # col now represents the original row index (0, 1, 2, 3...)
-            # We need to get the feature name and score from the transposed df
-            feature = df.loc["Feature", col]
-            score = df.loc["Score", col]
-            # Strip warning emoji from feature name before passing to score_color
-            base_feature = feature.split(" ⚠️")[0]
-            colors.append(score_color(base_feature, float(score)))
-        return colors
-
-    styled_df = df.style.apply(color_transposed_row, axis=1)
-
-    return styled_df
-
-    return styled_df
-
 
 def plot_scores(scores_list, title="Feature Similarity Scores"):
 
@@ -815,7 +666,7 @@ def plot_scores(scores_list, title="Feature Similarity Scores"):
         plt.show()
 
 
-def classify_duplicate(results):
+def classify_candidate_emoji_color(results):
     """
     Classifies duplicate candidates based on their similarity scores for key features,
     using predefined thresholds to determine if they are 
@@ -892,7 +743,7 @@ if st.button("Process duplicates"):
             for lei in st.session_state.duplicate_leis:
                 st.write(lei)
 
-            run_duplicate_checks()
+            fetch_all_gleif_vars()
         else:
             st.warning("No LEI-Number found (duplicates)")
     else:
@@ -909,7 +760,7 @@ manager_text = st.text_area(
 if st.button("Process LEI Manager"):
     
     if manager_text.strip():
-        manager_vars = parse_lei_manager(manager_text)
+        manager_vars = extract_lei_manager_vars(manager_text)
         if manager_vars["legal_name"] is not None:
             st.success("LEI Manager information extracted successfully")
         else:
@@ -941,7 +792,7 @@ if st.button("Check Duplicates"):
             has_authority_mismatch = True
         
         # Classify duplicate
-        status = classify_duplicate(results)
+        status = classify_candidate_emoji_color(results)
         status_log.append(status)
         
         if status == "RED":
