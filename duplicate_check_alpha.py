@@ -929,38 +929,39 @@ if st.button("Check Duplicates"):
     findings = "No duplicates found! You may aprove the order. See below for more details."
     is_there_a_duplicate = False
     has_authority_mismatch = False
+    has_yellow = False
     duplicate_leis = st.session_state.duplicate_leis
     all_gleif_duplicates = st.session_state.all_gleif_duplicates
 
-    # Check if any candidate has a different authority ID
-    for results in all_results:
+    # Check duplicates and authority mismatches in a single pass
+    for i, results in enumerate(all_results):
+        # Check authority ID
         authority_id_score = results[1][1] if results and len(results) > 1 and results[1][0] == "Authority ID" else None
         if authority_id_score == 0:
             has_authority_mismatch = True
-            break
-    
-    # Show single warning if any authority mismatches exist
-    if has_authority_mismatch:
-        st.warning("⚠️ **One or more candidates have a DIFFERENT Registration Authority ID.**  These should be checked individually.")    
-    
-    for i, results in enumerate(all_results):
+        
+        # Classify duplicate
         status = classify_duplicate(results)
         status_log.append(status)
+        
         if status == "RED":
             findings = f"DUPLICATE ALERT: {duplicate_leis[i]}\n"
             is_there_a_duplicate = True
             st.error(findings)
+        elif status == "YELLOW":
+            has_yellow = True
 
-    if not is_there_a_duplicate:
-        for status in status_log:
-            if status == "YELLOW":
-                findings = "🟡 Possible duplicates found. Please review the details below before approving the order."
-                st.warning(findings)
-                is_there_a_duplicate = True
-                break
-
-        if not is_there_a_duplicate and not has_authority_mismatch:
-            st.success(findings)
+    # Show single warning if any authority mismatches exist
+    if has_authority_mismatch:
+        st.warning("⚠️ One or more candidates have a **different Registration Authority ID.**  These should be checked individually.")    
+    
+    # Show appropriate final status
+    if is_there_a_duplicate:
+        pass  # Already shown RED errors above
+    elif has_yellow:
+        st.warning("Possible duplicates found. Please review the details below before approving the order.")
+    elif not has_authority_mismatch:
+        st.success(findings)
 
 
 
