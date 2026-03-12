@@ -105,6 +105,15 @@ with st.sidebar:
 pattern = r'^[A-Z0-9]{20}$'
 url_stem = "https://api.gleif.org/api/v1/lei-records/"
 
+def handle_GST_PAN_reg_ID(gleif_reg_ID: str, manager_reg_ID: str, current_score: float) -> float   :
+    """
+    Custom handling for GST/PAN Registration IDs (specific to RA000754 - India).
+    Since the PAN number is embedded within the GSTRegistration ID and is a critical identifier,
+    we must consider this test
+    """
+    pan_score = fuzz.ratio(gleif_reg_ID[2:-3], manager_reg_ID[2:-3]) if gleif_reg_ID and manager_reg_ID else None
+    return max(current_score, pan_score) if pan_score is not None else current_score
+
 FEATURE_KEY_MAP = {
     "Authority ID": "authority_ID",
     "Registration ID": "reg_ID",
@@ -115,6 +124,10 @@ FEATURE_KEY_MAP = {
     "Legal Form": "legal_form"
 }
 
+# Authority-specific handling functions-dictionary
+AUTHORITY_HANDLERS = {
+    "RA000754": handle_GST_PAN_reg_ID,
+}
 
 # Reading of dictionaries
 
@@ -319,8 +332,8 @@ def fetch_all_gleif_vars():
 def extract_lei_manager_vars(text_lei_manager, debug=False):
 
     """
-    Extracts relevant information from the LEI Manager text and 
-    stores it in a dictionary for easy comparison with GLEIF data.
+    Extracts manager_vars from the full text of the LEI Manager.
+    These are the variables of the company we want to check for duplicates.
 
     Parameters:
     - text_lei_manager (str): full text of the LEI Manager
@@ -455,30 +468,28 @@ def generate_results():
 
         gleif_variables = duplicate
 
-        #Authority ID: Custom Check (see function authority_ID_check)
+    
         authority_ID_score = authority_ID_check(str(gleif_variables["authority_ID"]), str(manager_vars["authority_ID"]))
 
-        #Reg_ID: Fuzz Ratio
+        #Reg_ID: Fuzz Ratio. If GST, we have a custom handler to extract the PAN and compare it, since it's a critical identifier. See AUTHORITY_HANDLERS and handle_GST_PAN_reg_ID function.
         reg_ID_score = fuzz.ratio(str(gleif_variables["reg_ID"]), str(manager_vars["reg_ID"])) if gleif_variables.get("reg_ID") and manager_vars.get("reg_ID") else None
+        if manager_vars["authority_ID"] in AUTHORITY_HANDLERS:
+            handler = AUTHORITY_HANDLERS[manager_vars["authority_ID"]]
+            reg_ID_score = handler(gleif_variables["reg_ID"], manager_vars["reg_ID"], reg_ID_score)
 
-        #Legal Name: Fuzz Ratio
         legal_name_score = fuzz.ratio(str(gleif_variables["legal_name"]).lower(), str(manager_vars["legal_name"]).lower()) if gleif_variables.get("legal_name") and manager_vars.get("legal_name") else None
         
-        #Address
         address_score_partial = fuzz.partial_ratio(str(gleif_variables["address"]).lower(), str(manager_vars["address"]).lower()) if gleif_variables.get("address") and manager_vars.get("address") else None
         address_score_token_set = fuzz.token_set_ratio(str(gleif_variables["address"]).lower(), str(manager_vars["address"]).lower()) if gleif_variables.get("address") and manager_vars.get("address") else None
         address_score = max(address_score_partial, address_score_token_set) if address_score_partial is not None and address_score_token_set is not None else address_score_partial or address_score_token_set
         
-        #Date: absolute difference in days
         date_score = abs((gleif_variables["date"].date() - manager_vars["date"]).days) if gleif_variables.get("date") and manager_vars.get("date") else None
 
-        #Legal Form: We get the highest score among the three legal form variables from GLEIF, since sometimes one of them can be empty while the others are not. We also ignore case and extra spaces for this comparison.
         legal_form_score_main = fuzz.partial_ratio(str(gleif_variables["legal_form"]).lower(), str(manager_vars["legal_form"]).lower().strip())
         legal_form_short_score = fuzz.partial_ratio(str(gleif_variables["legal_form_short"]).lower(), str(manager_vars["legal_form"]).lower().strip())
         legal_form_other_score = fuzz.partial_ratio(str(gleif_variables["legal_form_other"]).lower(), str(manager_vars["legal_form"]).lower().strip())
         legal_form_score = max(legal_form_score_main, legal_form_short_score, legal_form_other_score) if legal_form_score_main is not None and legal_form_short_score is not None and legal_form_other_score is not None else legal_form_score_main or legal_form_short_score or legal_form_other_score
 
-        # ZIP Code: Fuzz Ratio
         zipcode_score = fuzz.ratio(str(gleif_variables["zipcode"]), str(manager_vars["zipcode"])) if gleif_variables.get("zipcode") and manager_vars.get("zipcode") else None
 
 
@@ -539,8 +550,16 @@ def get_feature_row_color(feature, value):
         else:
             return "background-color: #c6efce" # verde
         
+    if feature == "Registration ID":
+        if value >= 95:
+            return "background-color: #ffc7ce" # vermelho
+        elif value >= 90:
+            return "background-color: #ffeb9c" # amarelo
+        else:
+            return "background-color: #c6efce" # verde
         
-    # Demais casos (atualmente só Reg_ID e Address):
+        
+    # Demais casos (atualmente só Address):
     else:
         if value >= 80:
             return "background-color: #ffc7ce"
@@ -695,7 +714,7 @@ def classify_candidate_emoji_color(results):
     # =========================
     if (
         address >= 80
-        or (reg_ID is None or reg_ID >= 80)
+        or (reg_ID is None or reg_ID >= 95)
         or (zipcode >= 95)
     ):
         return "RED"
@@ -705,7 +724,7 @@ def classify_candidate_emoji_color(results):
     # =========================
     if (
         address >= 65
-        or (reg_ID is None or reg_ID >= 65)
+        or (reg_ID is None or reg_ID >= 90)
         or (zipcode >= 90)
     ):
         return "YELLOW"  
@@ -779,7 +798,7 @@ if st.button("Check Duplicates"):
     status_log = []
     findings = "No duplicates found! You may aprove the order. See below for more details."
     is_there_a_duplicate = False
-    has_authority_mismatch = False
+    there_is_at_least_one_authority_mismatch = False
     has_yellow = False
     duplicate_leis = st.session_state.duplicate_leis
     all_gleif_duplicates = st.session_state.all_gleif_duplicates
@@ -789,7 +808,7 @@ if st.button("Check Duplicates"):
         # Check authority ID
         authority_id_score = results[1][1] if results and len(results) > 1 and results[1][0] == "Authority ID" else None
         if authority_id_score == 0:
-            has_authority_mismatch = True
+            there_is_at_least_one_authority_mismatch = True
         
         # Classify duplicate
         status = classify_candidate_emoji_color(results)
@@ -803,7 +822,7 @@ if st.button("Check Duplicates"):
             has_yellow = True
 
     # Show single warning if any authority mismatches exist
-    if has_authority_mismatch:
+    if there_is_at_least_one_authority_mismatch:
         st.warning("⚠️ One or more candidates have a **different Registration Authority ID.**  These should be checked individually.")    
     
     # Show appropriate final status
@@ -811,7 +830,7 @@ if st.button("Check Duplicates"):
         pass  # Already shown RED errors above
     elif has_yellow:
         st.warning("Possible duplicates found. Please review the details below before approving the order.")
-    elif not has_authority_mismatch:
+    elif not there_is_at_least_one_authority_mismatch:
         st.success(findings)
 
 
@@ -834,7 +853,7 @@ if st.button("Check Duplicates"):
         lei_code = duplicate_leis[i]
         
         # Check if Authority ID is 0 (different)
-        authority_warning = " ⚠️ DIFFERENT AUTHORITY" if has_authority_mismatch else ""
+        authority_warning = " ⚠️ DIFFERENT AUTHORITY" if results[1][1] == 0 else ""
 
         with st.expander(f"{emoji} Duplicate candidate: {lei_code}{authority_warning}"):
 
