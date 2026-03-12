@@ -114,6 +114,16 @@ def handle_GST_PAN_reg_ID(gleif_reg_ID: str, manager_reg_ID: str, current_score:
     pan_score = fuzz.ratio(gleif_reg_ID[2:-3], manager_reg_ID[2:-3]) if gleif_reg_ID and manager_reg_ID else None
     return max(current_score, pan_score) if pan_score is not None else current_score
 
+def handle_no_authority_check() -> float:
+    """
+    For cases like Germany, where all reg_IDs are issued by the same
+    authority, but with different authority IDs.
+
+    In other words, all numbers are registered at HAndelsregister, but
+    are often different (eg Amt Hamburg has different ID than Berlin)
+    """
+    return 100.0
+
 FEATURE_KEY_MAP = {
     "Authority ID": "authority_ID",
     "Registration ID": "reg_ID",
@@ -124,9 +134,16 @@ FEATURE_KEY_MAP = {
     "Legal Form": "legal_form"
 }
 
-# Authority-specific handling functions-dictionary
 AUTHORITY_HANDLERS = {
     "RA000754": handle_GST_PAN_reg_ID,
+}
+
+JURISDICTION_HANDLERS = {
+    "DE": {
+        "function": handle_no_authority_check,
+        "message": "Authority mismatch warning (⚠️) will **not** be displayed for companies based in **Germany**. See FAQ more more details.",
+        "severity": "info"
+    }
 }
 
 # Reading of dictionaries
@@ -468,14 +485,16 @@ def generate_results():
 
         gleif_variables = duplicate
 
-    
         authority_ID_score = authority_ID_check(str(gleif_variables["authority_ID"]), str(manager_vars["authority_ID"]))
+        if manager_vars["jurisdiction"] in JURISDICTION_HANDLERS:
+            config = JURISDICTION_HANDLERS[manager_vars["jurisdiction"]]
+            authority_ID_score = config["function"]()
 
-        #Reg_ID: Fuzz Ratio. If GST, we have a custom handler to extract the PAN and compare it, since it's a critical identifier. See AUTHORITY_HANDLERS and handle_GST_PAN_reg_ID function.
+        #Reg_ID: Fuzz Ratio. If GST, we have a custom function to extract the PAN and compare it, since it's a critical identifier. See AUTHORITY_HANDLERS and handle_GST_PAN_reg_ID function.
         reg_ID_score = fuzz.ratio(str(gleif_variables["reg_ID"]), str(manager_vars["reg_ID"])) if gleif_variables.get("reg_ID") and manager_vars.get("reg_ID") else None
         if manager_vars["authority_ID"] in AUTHORITY_HANDLERS:
-            handler = AUTHORITY_HANDLERS[manager_vars["authority_ID"]]
-            reg_ID_score = handler(gleif_variables["reg_ID"], manager_vars["reg_ID"], reg_ID_score)
+            function = AUTHORITY_HANDLERS[manager_vars["authority_ID"]]
+            reg_ID_score = function(gleif_variables["reg_ID"], manager_vars["reg_ID"], reg_ID_score)
 
         legal_name_score = fuzz.ratio(str(gleif_variables["legal_name"]).lower(), str(manager_vars["legal_name"]).lower()) if gleif_variables.get("legal_name") and manager_vars.get("legal_name") else None
         
@@ -782,6 +801,9 @@ if st.button("Process LEI Manager"):
         manager_vars = extract_lei_manager_vars(manager_text)
         if manager_vars["legal_name"] is not None:
             st.success("LEI Manager information extracted successfully")
+            if manager_vars["jurisdiction"] and manager_vars["jurisdiction"] in JURISDICTION_HANDLERS:
+                config = JURISDICTION_HANDLERS[manager_vars["jurisdiction"]]
+                getattr(st, config["severity"])(config["message"])
         else:
             # Usually the most common reason for this is the 
             # LEI Manager's languagenot being changed to english
@@ -827,7 +849,7 @@ if st.button("Check Duplicates"):
     
     # Show appropriate final status
     if is_there_a_duplicate:
-        pass  # Already shown RED errors above
+        pass # (RED ERROr message was already shown.)
     elif has_yellow:
         st.warning("Possible duplicates found. Please review the details below before approving the order.")
     elif not there_is_at_least_one_authority_mismatch:
