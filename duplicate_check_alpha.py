@@ -44,7 +44,11 @@ if "manager_vars" not in st.session_state:
 
 if "lei_status_pairs" not in st.session_state:
     st.session_state.lei_status_pairs = {}
-    lei_status_pairs = st.session_state.lei_status_pairs        
+    lei_status_pairs = st.session_state.lei_status_pairs
+
+if "missing_leis_count" not in st.session_state:
+    st.session_state.missing_leis_count = None
+    missing_leis_count = st.session_state.missing_leis_count        
 
 
 # Sidebar Configuration
@@ -108,6 +112,7 @@ with st.sidebar:
 
 pattern = r'^[A-Z0-9]{20}$'
 pattern_lei_status = r'([A-Z0-9]{20})\n.+?\n.+?\n(ISSUED|PENDING_VALIDATION|LAPSED)'
+pattern_duplicate_count = r'(\d+)\s+duplicate\(s\)\s+found'
 url_stem = "https://api.gleif.org/api/v1/lei-records/"
 
 def handle_GST_PAN_reg_ID(gleif_reg_ID: str, manager_reg_ID: str, current_score: float) -> float   :
@@ -433,7 +438,6 @@ def extract_lei_manager_vars(text_lei_manager, debug=False):
     # Extract Zipcode using jurisdiction ISO code and address
     manager_zipcode = extract_zipcode(manager_address, manager_jurisdiction) if manager_address and manager_jurisdiction else None
     manager_vars["zipcode"] = manager_zipcode
-    print(f"Extracted zipcode: {manager_zipcode} from address: {manager_address} and jurisdiction: {manager_jurisdiction}") 
 
     # Contact Partner
     contact_partner_match = re.search(
@@ -649,7 +653,7 @@ def build_comparison_table(results, gleif_vars, manager_vars):
             get_feature_row_color(row["Feature"].split(" ⚠️")[0], float(row["Score"]))
         ],
         axis=1
-    )
+    ).format({"Score": "{:.0f}"}) # Removes decimal points for the score
 
     return styled_df
 
@@ -794,6 +798,18 @@ if st.button("Process duplicates"):
         matches = re.findall(pattern_lei_status, duplicates_text, re.DOTALL)
         lei_status_pairs = {lei: status for lei, status in matches}
         st.session_state.lei_status_pairs = lei_status_pairs
+
+        # Extract the total duplicate count from the message and compare
+        duplicate_count_match = re.search(pattern_duplicate_count, duplicates_text)
+        if duplicate_count_match:
+            total_duplicates = int(duplicate_count_match.group(1))
+            found_leis_count = len(st.session_state.duplicate_leis)
+            if total_duplicates > found_leis_count:
+                missing_leis_count = total_duplicates - found_leis_count
+                missing_leis_count = st.session_state.missing_leis_count
+                st.warning(f"**{missing_leis_count} LEI(s)** mentioned in the duplicate count were not found in the extracted list. This may be due to formatting issues in the message. **Make sure to check the remaining LEI(s) as well.**")
+            else:
+                st.session_state.missing_leis_count = None
 
         if st.session_state.duplicate_leis:
             st.success(f"{len(st.session_state.duplicate_leis)} LEI(s) found:")
