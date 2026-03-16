@@ -42,6 +42,10 @@ if "manager_vars" not in st.session_state:
     st.session_state.manager_vars = {}
     manager_vars = st.session_state.manager_vars
 
+if "lei_status_pairs" not in st.session_state:
+    st.session_state.lei_status_pairs = {}
+    lei_status_pairs = st.session_state.lei_status_pairs        
+
 
 # Sidebar Configuration
 with st.sidebar:
@@ -103,6 +107,7 @@ with st.sidebar:
 
 
 pattern = r'^[A-Z0-9]{20}$'
+pattern_lei_status = r'([A-Z0-9]{20})\n.+?\n.+?\n(ISSUED|PENDING_VALIDATION|LAPSED)'
 url_stem = "https://api.gleif.org/api/v1/lei-records/"
 
 def handle_GST_PAN_reg_ID(gleif_reg_ID: str, manager_reg_ID: str, current_score: float) -> float   :
@@ -195,13 +200,23 @@ def fetch_gleif_vars(lei: str):
     returns:
     - gleif_variables (dict): dicionário contendo as variáveis extraídas da API
     """
-
+    lei_status_pairs = st.session_state.lei_status_pairs
     gleif_variables = {}
     url = f"{url_stem}{lei}"
     #print(url)
 
+    print(f"LEI: {lei_status_pairs.get(lei)}")  # Debug print for LEI status
     page = requests.get(url)
     if page.status_code != 200:
+        # If 404, check if it's PENDING_VALIDATION
+        if page.status_code == 404:
+            
+            status = lei_status_pairs.get(lei)
+            if status == "PENDING_VALIDATION":
+                st.warning(f"⏳ Skipping {lei} — LEI Status: PENDING_VALIDATION")
+                return None
+        
+        # For all other errors (or 404 without PENDING_VALIDATION), show error
         print(f"\n\n ********** Error searching for LEI {lei} — status {page.status_code} ********** \n\n")
         st.write(f"\n\n ********** Error searching for LEI {lei} — status {page.status_code} ********** \n\n")
         return
@@ -776,10 +791,18 @@ if st.button("Process duplicates"):
             flags=re.MULTILINE
         )
 
+        matches = re.findall(pattern_lei_status, duplicates_text, re.DOTALL)
+        lei_status_pairs = {lei: status for lei, status in matches}
+        st.session_state.lei_status_pairs = lei_status_pairs
+
         if st.session_state.duplicate_leis:
             st.success(f"{len(st.session_state.duplicate_leis)} LEI(s) found:")
             for lei in st.session_state.duplicate_leis:
-                st.write(lei)
+                status = lei_status_pairs.get(lei)
+                if status and status != "ISSUED":
+                    st.write(f"{lei} - {status}")
+                else:
+                    st.write(lei)
 
             fetch_all_gleif_vars()
         else:
