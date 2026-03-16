@@ -213,7 +213,7 @@ def fetch_gleif_vars(lei: str):
             
             status = lei_status_pairs.get(lei)
             if status == "PENDING_VALIDATION":
-                st.warning(f"⏳ Skipping {lei} — LEI Status: PENDING_VALIDATION")
+                st.warning(f"Skipping {lei} — LEI Status: PENDING_VALIDATION")
                 return None
         
         # For all other errors (or 404 without PENDING_VALIDATION), show error
