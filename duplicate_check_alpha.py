@@ -806,7 +806,7 @@ if st.button("Process duplicates"):
             found_leis_count = len(st.session_state.duplicate_leis)
             if total_duplicates > found_leis_count:
                 missing_leis_count = total_duplicates - found_leis_count
-                missing_leis_count = st.session_state.missing_leis_count
+                st.session_state.missing_leis_count = missing_leis_count
                 st.warning(f"**{missing_leis_count} LEI(s)** mentioned in the duplicate count were not found in the extracted list. This may be due to formatting issues in the message. **Make sure to check the remaining LEI(s) as well.**")
             else:
                 st.session_state.missing_leis_count = None
