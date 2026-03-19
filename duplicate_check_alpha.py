@@ -751,9 +751,9 @@ def classify_candidate_emoji_color(results):
     # 🔴 PROVÁVEL DUPLICATA
     # =========================
     if (
-        address >= 80
-        or (reg_ID is None or reg_ID >= 95)
-        or (zipcode >= 95)
+        (address is not None and address >= 80)
+        or (reg_ID is not None and reg_ID >= 95)
+        or (zipcode is not None and zipcode >= 95)
     ):
         return "RED"
 
@@ -761,9 +761,9 @@ def classify_candidate_emoji_color(results):
     # 🟡 POSSÍVEL DUPLICATA
     # =========================
     if (
-        address >= 65
-        or (reg_ID is None or reg_ID >= 90)
-        or (zipcode >= 90)
+        (address is not None and address >= 65)
+        or ((reg_ID is None and authority_ID != 50) or (reg_ID is not None and reg_ID >= 90)) # Só vai dar amarelo se nao tiver authority_ID E não for um caso de RA777777, RA888888 ou RA999999 (que tem authority_ID score de 50).
+        or (zipcode is not None and zipcode >= 90)
     ):
         return "YELLOW"  
 
