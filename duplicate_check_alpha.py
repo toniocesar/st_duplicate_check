@@ -156,6 +156,20 @@ JURISDICTION_HANDLERS = {
     }
 }
 
+SCORE_THRESHOLDS = {
+    "Registration ID": {"RED": 95,
+                        "YELLOW": 90},
+    "Address": {"RED": 80,
+                "YELLOW": 65},
+    "ZIP Code": {"RED": 95,
+                "YELLOW": 90},
+    "Creation Date": {"RED": 1,
+                      "YELLOW": 7},
+    
+    
+}
+
+
 # Reading of dictionaries
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -572,26 +586,26 @@ def get_feature_row_color(feature, value):
     
     #Creation Date tem uma lógica invertida, quanto menor a diferença de dias, mais parecido é.
     if feature == "Creation Date":
-        if value <= 1:
+        if value <= SCORE_THRESHOLDS["Creation Date"]["RED"]:
             return "background-color: #ffc7ce"   # vermelho
-        elif value <= 7:
+        elif value <= SCORE_THRESHOLDS["Creation Date"]["YELLOW"]:
             return "background-color: #ffeb9c"   # amarelo
         else:
             return "background-color: #c6efce"   # verde
         
     # ZIP Code tem threshold mais rígido, já que é um string tão pequeno    
     if feature == "ZIP Code":
-        if value >= 95:
+        if value >= SCORE_THRESHOLDS["ZIP Code"]["RED"]:
             return "background-color: #ffc7ce" # vermelho
-        elif value >= 90:
+        elif value >= SCORE_THRESHOLDS["ZIP Code"]["YELLOW"]:
             return "background-color: #ffeb9c" # amarelo
         else:
             return "background-color: #c6efce" # verde
         
     if feature == "Registration ID":
-        if value >= 95:
+        if value >= SCORE_THRESHOLDS["Registration ID"]["RED"]:
             return "background-color: #ffc7ce" # vermelho
-        elif value >= 90:
+        elif value >= SCORE_THRESHOLDS["Registration ID"]["YELLOW"]:
             return "background-color: #ffeb9c" # amarelo
         else:
             return "background-color: #c6efce" # verde
@@ -599,10 +613,10 @@ def get_feature_row_color(feature, value):
         
     # Demais casos (atualmente só Address):
     else:
-        if value >= 80:
-            return "background-color: #ffc7ce"
-        elif value >= 65: # A vantagem do 65 é que quando o PAN for igual, o numero vai dar match de 10 numeros dos 15, no minimo. nesse caso, o fuzz.ratio retorna um valor de 66.666 (2 terços), entao 65 engloba esse caso e mostra amarelo. Mas temos que ver se isso nao vai afetar o resto e deixar muitos falsos positivos.
-            return "background-color: #ffeb9c"
+        if value >= SCORE_THRESHOLDS["Address"]["RED"]:
+            return "background-color: #ffc7ce" #RED
+        elif value >= SCORE_THRESHOLDS["Address"]["YELLOW"]:
+            return "background-color: #ffeb9c" #YELLOW
         else:
             return "background-color: #c6efce"
 
@@ -751,9 +765,9 @@ def classify_candidate_emoji_color(results):
     # 🔴 PROVÁVEL DUPLICATA
     # =========================
     if (
-        (address is not None and address >= 80)
-        or (reg_ID is not None and reg_ID >= 95)
-        or (zipcode is not None and zipcode >= 95)
+        (address is not None and address >= SCORE_THRESHOLDS["Address"]["RED"])
+        or (reg_ID is not None and reg_ID >= SCORE_THRESHOLDS["Registration ID"]["RED"])
+        or (zipcode is not None and zipcode >= SCORE_THRESHOLDS["ZIP Code"]["RED"])
     ):
         return "RED"
 
@@ -761,9 +775,9 @@ def classify_candidate_emoji_color(results):
     # 🟡 POSSÍVEL DUPLICATA
     # =========================
     if (
-        (address is not None and address >= 65)
-        or ((reg_ID is None and authority_ID != 50) or (reg_ID is not None and reg_ID >= 90)) # Só vai dar amarelo se nao tiver authority_ID E não for um caso de RA777777, RA888888 ou RA999999 (que tem authority_ID score de 50).
-        or (zipcode is not None and zipcode >= 90)
+        (address is not None and address >= SCORE_THRESHOLDS["Address"]["YELLOW"])
+        or ((reg_ID is None and authority_ID != 50) or (reg_ID is not None and reg_ID >= SCORE_THRESHOLDS["Registration ID"]["YELLOW"])) # Só vai dar amarelo se nao tiver authority_ID E não for um caso de RA777777, RA888888 ou RA999999 (que tem authority_ID score de 50).
+        or (zipcode is not None and zipcode >= SCORE_THRESHOLDS["ZIP Code"]["YELLOW"])
     ):
         return "YELLOW"  
 
