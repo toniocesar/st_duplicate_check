@@ -161,7 +161,7 @@ SCORE_THRESHOLDS = {
                         "YELLOW": 90},
     "Address": {"RED": 80,
                 "YELLOW": 65},
-    "ZIP Code": {"RED": 95,
+    "ZIP Code": {"RED": 95, # Importante: o ZIP code vai ficar vermelho na tabela, mas na funcao que gera os emojis coloridos, o zip code vai ficar no maximo amarelo, e nao mais vermelho.
                 "YELLOW": 90},
     "Creation Date": {"RED": 1,
                       "YELLOW": 7},
@@ -763,7 +763,7 @@ def classify_candidate_emoji_color(results):
     if (
         (address is not None and address >= SCORE_THRESHOLDS["Address"]["RED"])
         or (reg_ID is not None and reg_ID >= SCORE_THRESHOLDS["Registration ID"]["RED"])
-        or (zipcode is not None and zipcode >= SCORE_THRESHOLDS["ZIP Code"]["RED"])
+        # Eu removi o check do ZIP_code do vermelho, pq só um cep igual nao é suficiente pra garantir duplicate. Ainda temos o check amarelo do ZIP, ta bom o suficiente.
     ):
         return "RED"
 
