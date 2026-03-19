@@ -545,15 +545,15 @@ def generate_results():
         zipcode_score = fuzz.ratio(str(gleif_variables["zipcode"]), str(manager_vars["zipcode"])) if gleif_variables.get("zipcode") and manager_vars.get("zipcode") else None
 
 
-        results = [
-            ("Legal Name", legal_name_score),
-            ("Authority ID", authority_ID_score),
-            ("Registration ID", reg_ID_score), 
-            ("Address", address_score), 
-            ("ZIP Code", zipcode_score),
-            ("Creation Date", date_score),
-            ("Legal Form", legal_form_score),
-            ]
+        results = {
+            "Legal Name": legal_name_score,
+            "Authority ID": authority_ID_score,
+            "Registration ID": reg_ID_score, 
+            "Address": address_score, 
+            "ZIP Code": zipcode_score,
+            "Creation Date": date_score,
+            "Legal Form": legal_form_score,
+        }
 
         all_results.append(results)
         st.session_state.all_results = all_results
@@ -625,7 +625,7 @@ def build_comparison_table(results, gleif_vars, manager_vars):
 
     rows = []
 
-    for feature, score in results:
+    for feature, score in results.items():
 
         key = FEATURE_KEY_MAP.get(feature)
 
@@ -743,7 +743,7 @@ def classify_candidate_emoji_color(results):
     Retorna: GREEN, YELLOW ou RED
     """
 
-    scores = {feature: score for feature, score in results}
+    scores = results
 
     authority_ID = scores.get("Authority ID")
     reg_ID = scores.get("Registration ID")
@@ -877,7 +877,7 @@ if st.button("Check Duplicates"):
     # Check duplicates and authority mismatches in a single pass
     for i, results in enumerate(all_results):
         # Check authority ID
-        authority_id_score = results[1][1] if results and len(results) > 1 and results[1][0] == "Authority ID" else None
+        authority_id_score = results.get("Authority ID")
         if authority_id_score == 0:
             there_is_at_least_one_authority_mismatch = True
         
@@ -924,7 +924,7 @@ if st.button("Check Duplicates"):
         lei_code = duplicate_leis[i]
         
         # Check if Authority ID is 0 (different)
-        authority_warning = " ⚠️ DIFFERENT AUTHORITY" if results[1][1] == 0 else ""
+        authority_warning = " ⚠️ DIFFERENT AUTHORITY" if results.get("Authority ID") == 0 else ""
 
         with st.expander(f"{emoji} Duplicate candidate: {lei_code}{authority_warning}"):
 
