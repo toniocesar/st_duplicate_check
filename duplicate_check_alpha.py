@@ -574,7 +574,7 @@ def get_feature_row_color(feature, value):
         return ""
     
     # Authority ID gets a special treatment. Only yellow (if different) or no-color otherwise.
-    if feature == "Authority ID":
+    if "Authority ID" in feature: # Substring check. Also works for cases like "Authority ID ⚠️ Different".
         if value == 0:
             return "background-color: #ffeb9c"   # amarelo se não for identico
         else:
@@ -660,13 +660,9 @@ def build_comparison_table(results, gleif_vars, manager_vars):
 
 
     styled_df = df.style.apply(
-        lambda row: [
-            get_feature_row_color(row["Feature"].split(" ⚠️")[0], float(row["Score"])),
-            get_feature_row_color(row["Feature"].split(" ⚠️")[0], float(row["Score"])),
-            get_feature_row_color(row["Feature"].split(" ⚠️")[0], float(row["Score"])),
-            get_feature_row_color(row["Feature"].split(" ⚠️")[0], float(row["Score"]))
-        ],
-        axis=1
+        # Applies the get_feature_row_color function to each row, passing the feature name and score to determine the background color for the entire row.
+        lambda row: [get_feature_row_color(row["Feature"], float(row["Score"]))] * 4, # Multiplied by 4 to apply the same color to all columns in the row. (Which I am still skeptical about, but ok).
+        axis=1 # Axis 1 means we apply the function to each row. 
     ).format({"Score": "{:.0f}"}) # Removes decimal points for the score
 
     return styled_df
