@@ -72,13 +72,7 @@ with st.sidebar:
     if st.button("❓ Help", use_container_width=True):
         st.markdown("""
         ### How it works
-        The application compares candidates from a duplicates message against LEI Manager data, using fuzzy matching to evaluate similarities across multiple features:
-        - Registration IDs
-        - Legal Names
-        - Addresses
-        - Creation Dates
-        - Legal Forms
-        - Registration Authorities
+        The application compares candidates from a duplicates message against LEI Manager data, using fuzzy matching to evaluate similarities across multiple features, like Registration ID, Legal Name, Address...
                     
         ### How to Use
                     
@@ -88,15 +82,23 @@ with st.sidebar:
         
         ### Results Interpretation
         
-        - **🔴 RED**: Likely duplicate - high similarity detected
-        - **🟡 YELLOW**: Possible duplicate - moderate similarity or authority mismatch
-        - **🟢 GREEN**: Unlikely duplicate - low similarity
+        - **🔴 RED**: Likely duplicate, high similarity detected
+        - **🟡 YELLOW**: Possible duplicate, moderate similarity or authority mismatch
+        - **🟢 GREEN**: Unlikely duplicate, low similarity
         
         ### Scoring
         
         - Scores range from 0-100. Values close to 100 indicate high similarity
-        - Date differences are shown in days
-        - Different Authority ID gets flagged (⚠️), since registration IDs from different authorities cannot be compared directly
+        - Date-scores are shown as the difference in days. Lower values indicate higher similarity.
+        
+        ### FAQ
+         
+        - Make sure to **follow the steps in order**: first process duplicates, then process LEI Manager, and only then check duplicates. This is important to ensure all variables are properly set.
+        - The **Different Authority ID (⚠️)** warning calls for manual review, since the registration numbers from 2 different authorities cannot be compared directly.
+        - The status displayed for each LEI (eg ISSUED, PENDING_VALIDATION) is based on the information extracted from the duplicates message. It does **not** represent the current state of the LEI in the GLEIF database.
+        - For companies based in Germany, the **Different Authority ID (⚠️)** warning will not be displayed, since all German companies are registered under the same authority (Handelsregister), but with different authority IDs. In other words, german Registration IDs can be compared with each other, regardless of the authority it was issued in.
+                    
+                    
         """)
     
     st.markdown("---")
