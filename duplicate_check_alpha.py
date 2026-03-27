@@ -376,10 +376,22 @@ def fetch_all_gleif_vars():
     """
     st.session_state.all_gleif_duplicates = []
     duplicate_leis = st.session_state.duplicate_leis
-    for lei in duplicate_leis:
+    progress_bar = st.progress(0)
+    status_text = st.empty()
+    
+    for i, lei in enumerate(duplicate_leis):
+        # Update progress bar and status
+        progress = (i + 1) / len(duplicate_leis)
+        progress_bar.progress(progress)
+        status_text.text(f"Fetching GLEIF data: {i + 1} of {len(duplicate_leis)} LEIs...")
+        
         result = fetch_gleif_vars(lei)
         if result is not None:
             st.session_state.all_gleif_duplicates.append(result)
+    
+    # Clear the progress bar and status when done
+    progress_bar.empty()
+    status_text.empty()
 
 
 def extract_lei_manager_vars(text_lei_manager, debug=False):
@@ -832,6 +844,10 @@ if st.button("Process duplicates"):
                 else:
                     st.write(lei)
 
+            # Here we have the spinner, which shows an animated loading circle icon.
+
+            # with st.spinner("Fetching GLEIF data for all LEIs..."):
+                # fetch_all_gleif_vars()
             fetch_all_gleif_vars()
         else:
             st.warning("No LEI-Number found (duplicates)")
