@@ -224,7 +224,7 @@ def fetch_gleif_vars(lei: str):
     lei_status_pairs = st.session_state.lei_status_pairs
     gleif_variables = {}
     url = f"{url_stem}{lei}"
-    #print(url)
+
 
     print(f"LEI: {lei_status_pairs.get(lei)}")  # Debug print for LEI status
     page = requests.get(url)
@@ -254,7 +254,6 @@ def fetch_gleif_vars(lei: str):
         gleif_date = datetime.fromisoformat(gleif_date).replace(tzinfo=None)
     gleif_variables["date"] = gleif_date
 
-
     # GLEIF authority ID (RA code of the authority that issued the LEI)
     gleif_authority_ID = json_data["data"]["attributes"]["entity"]["registeredAt"]["id"]
     gleif_variables["authority_ID"] = gleif_authority_ID
@@ -267,6 +266,31 @@ def fetch_gleif_vars(lei: str):
     # GLEIF Registration ID (RA Entity ID)
     gleif_reg_ID = json_data["data"]["attributes"]["entity"]["registeredAs"]
     gleif_variables["reg_ID"] = gleif_reg_ID
+
+
+    gleif_authority_pairs = []
+    gleif_authority_pairs.append({
+        "authority_ID": gleif_authority_ID,
+        "reg_ID": gleif_reg_ID
+    })
+
+    # to keep the formatting standardized, try to do it without these getters in the future.
+    other_validation_authorities = json_data.get("data", {}).get("attributes", {}).get("registration", {}).get("otherValidationAuthorities", [])
+    if other_validation_authorities:
+        for other_auth in other_validation_authorities:
+            other_authority_ID = other_auth.get("validatedAt", {}).get("id")
+            other_reg_ID = other_auth.get("validatedAs")
+            if other_authority_ID and other_reg_ID:
+                gleif_authority_pairs.append({
+                    "authority_ID": other_authority_ID,
+                    "reg_ID": other_reg_ID
+                })
+
+    gleif_variables["authority_pairs"] = gleif_authority_pairs
+
+    
+
+        
 
     # GLEIF Legal Name
     gleif_legal_name = json_data["data"]["attributes"]["entity"]["legalName"]["name"]
@@ -424,14 +448,33 @@ def extract_lei_manager_vars(text_lei_manager, debug=False):
     manager_vars["entity_category"] = manager_entity_category
 
     # Registration Authority Entity ID
-    ra_entity_id_match = re.search(r"Registration Authority Entity ID:(.+)", text_lei_manager)
+    ra_entity_id_match = re.search(r"Validation Authority Entity ID:(.+)", text_lei_manager)
     manager_ra_entity_id = ra_entity_id_match.group(1).strip() if ra_entity_id_match else None
     manager_vars["reg_ID"] = manager_ra_entity_id
 
     # Authority ID (The authority itself)
-    authority_ID_match = re.search(r"Registration Authority ID:.*?\(\s*([A-Z0-9]+)\s*\)", text_lei_manager)
+    authority_ID_match = re.search(r"Validation Authority ID:.*?\(\s*([A-Z0-9]+)\s*\)", text_lei_manager)
     manager_authority_ID = authority_ID_match.group(1).strip() if authority_ID_match else None
     manager_vars["authority_ID"] = manager_authority_ID
+
+    manager_authority_pairs = []
+
+    # Find ALL Validation Authority Entity IDs
+    entity_id_pattern = r"Validation Authority Entity ID:(.+)"
+    entity_ids = re.findall(entity_id_pattern, text_lei_manager)
+
+    # Find ALL Validation Authority IDs
+    authority_id_pattern = r"Validation Authority ID:.*?\(\s*([A-Z0-9]+)\s*\)"
+    authority_ids = re.findall(authority_id_pattern, text_lei_manager)
+
+    # Pair them together
+    for auth_id, entity_id in zip(authority_ids, entity_ids):
+        manager_authority_pairs.append({
+            "authority_ID": auth_id.strip(),
+            "reg_ID": entity_id.strip()
+        })
+    
+    manager_vars["authority_pairs"] = manager_authority_pairs
 
     # Legal Form
     legal_form_match = re.search(r"Legal Form:(.+?)\s*\(", text_lei_manager)
@@ -499,15 +542,6 @@ def extract_lei_manager_vars(text_lei_manager, debug=False):
     return manager_vars
 
 def authority_ID_check(gleif_authority_ID, manager_authority_ID):
-    """
-    Checks if the authority IDs from GLEIF and the LEI Manager match.
-        -If they are the same: returns 100
-        -If they are different: returns 0
-        -If one of them is RA777777, RA888888 or RA999999: returns 50
-    
-    :param gleif_authority_ID: Description
-    :param manager_authority_ID: Description
-    """
 
     if gleif_authority_ID in {"RA777777", "RA888888", "RA999999"} or manager_authority_ID in {"RA777777", "RA888888", "RA999999"}:
         return 50  # N/A, não é possível comparar
@@ -518,6 +552,36 @@ def authority_ID_check(gleif_authority_ID, manager_authority_ID):
         return 0
     return 0  # Fallback: return 0 if score is None or any other case
     
+def find_best_authority_match(gleif_authority_pairs, manager_authority_pairs, manager_jurisdiction):
+   
+    if not gleif_authority_pairs or not manager_authority_pairs:
+        return None, None, None, None
+
+    # Start with first result from each list as baseline
+    best_gleif_pair = gleif_authority_pairs[0]
+    best_manager_pair = manager_authority_pairs[0]
+
+    best_authority_score = authority_ID_check(best_gleif_pair["authority_ID"], best_manager_pair["authority_ID"])
+    best_reg_ID_score = fuzz.ratio(str(best_gleif_pair["reg_ID"]), str(best_manager_pair["reg_ID"])) if best_gleif_pair.get("reg_ID") and best_manager_pair.get("reg_ID") else None
+
+    if best_authority_score != 100:
+        for gleif_pair in gleif_authority_pairs:
+            for manager_pair in manager_authority_pairs:
+                current_authority_score = authority_ID_check(gleif_pair["authority_ID"], manager_pair["authority_ID"])
+                if current_authority_score == 100:
+                    current_reg_ID_score = fuzz.ratio(str(gleif_pair["reg_ID"]), str(manager_pair["reg_ID"])) if gleif_pair.get("reg_ID") and manager_pair.get("reg_ID") else None
+                    best_reg_ID_score = current_reg_ID_score
+                    best_authority_score = current_authority_score
+                    best_gleif_pair = gleif_pair
+                    best_manager_pair = manager_pair
+
+    if manager_jurisdiction in JURISDICTION_HANDLERS:
+        config = JURISDICTION_HANDLERS[manager_jurisdiction]
+        best_authority_score = config["function"]()
+    
+    return best_gleif_pair, best_manager_pair, best_authority_score, best_reg_ID_score
+
+
 
 
 def generate_results():
@@ -531,17 +595,28 @@ def generate_results():
     for duplicate in all_gleif_duplicates:
 
         gleif_variables = duplicate
+        
+        # Beginning of Authority and Registration ID
+        gleif_authority_pairs = gleif_variables.get("authority_pairs", [])
+        manager_authority_pairs = manager_vars.get("authority_pairs", [])
 
-        authority_ID_score = authority_ID_check(str(gleif_variables["authority_ID"]), str(manager_vars["authority_ID"]))
-        if manager_vars["jurisdiction"] in JURISDICTION_HANDLERS:
-            config = JURISDICTION_HANDLERS[manager_vars["jurisdiction"]]
-            authority_ID_score = config["function"]()
+        best_gleif_pair, best_manager_pair, authority_ID_score, reg_ID_score = find_best_authority_match(
+            gleif_authority_pairs, 
+            manager_authority_pairs, 
+            manager_vars.get("jurisdiction")
+        )
 
-        #Reg_ID: Fuzz Ratio. If GST, we have a custom function to extract the PAN and compare it, since it's a critical identifier. See AUTHORITY_HANDLERS and handle_GST_PAN_reg_ID function.
-        reg_ID_score = fuzz.ratio(str(gleif_variables["reg_ID"]), str(manager_vars["reg_ID"])) if gleif_variables.get("reg_ID") and manager_vars.get("reg_ID") else None
+        manager_vars["authority_ID"] = best_manager_pair["authority_ID"] if best_manager_pair else manager_vars["authority_ID"]
+        manager_vars["reg_ID"] = best_manager_pair["reg_ID"] if best_manager_pair else manager_vars["reg_ID"]
+        gleif_variables["authority_ID"] = best_gleif_pair["authority_ID"] if best_gleif_pair else gleif_variables["authority_ID"]
+        gleif_variables["reg_ID"] = best_gleif_pair["reg_ID"] if best_gleif_pair else gleif_variables["reg_ID"]     
+
+        # Im not sure this makes sense here. Maybe this check should be done before, like inside find_best_authority_match.
         if manager_vars["authority_ID"] in AUTHORITY_HANDLERS:
             function = AUTHORITY_HANDLERS[manager_vars["authority_ID"]]
             reg_ID_score = function(gleif_variables["reg_ID"], manager_vars["reg_ID"], reg_ID_score)
+
+        # End of Authority and Registration ID
 
         legal_name_score = fuzz.ratio(str(gleif_variables["legal_name"]).lower(), str(manager_vars["legal_name"]).lower()) if gleif_variables.get("legal_name") and manager_vars.get("legal_name") else None
         
@@ -896,6 +971,7 @@ if st.button("Check Duplicates"):
     for i, results in enumerate(all_results):
         # Check authority ID
         authority_id_score = results.get("Authority ID")
+        
         if authority_id_score == 0:
             there_is_at_least_one_authority_mismatch = True
         
@@ -952,4 +1028,4 @@ if st.button("Check Duplicates"):
                 st.session_state.manager_vars
             )
 
-            st.dataframe(styled_table, use_container_width=True)
+            st.dataframe(styled_table)
