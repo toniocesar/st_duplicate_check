@@ -1000,6 +1000,7 @@ if st.button("Check Duplicates"):
         st.warning("⚠️ One or more candidates have a **different Registration Authority ID.**  These should be checked individually.")    
     if was_a_lei_skipped:
         st.warning("⚠️ One or more LEIs could not be checked due to errors in fetching GLEIF data (error 404). These should be checked individually.")
+        st.session_state.was_a_lei_skipped = False # reset this variable for future checks, since it only serves to trigger the warning message.
     # Show appropriate final status
     if is_there_a_duplicate:
         pass # (RED ERROr message was already shown.)
