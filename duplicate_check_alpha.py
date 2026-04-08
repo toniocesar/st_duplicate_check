@@ -48,7 +48,11 @@ if "lei_status_pairs" not in st.session_state:
 
 if "missing_leis_count" not in st.session_state:
     st.session_state.missing_leis_count = None
-    missing_leis_count = st.session_state.missing_leis_count        
+    missing_leis_count = st.session_state.missing_leis_count
+
+if "was_a_lei_skipped" not in st.session_state:
+    st.session_state.was_a_lei_skipped = False
+    was_a_lei_skipped = st.session_state.was_a_lei_skipped     
 
 
 # Sidebar Configuration
@@ -229,6 +233,7 @@ def fetch_gleif_vars(lei: str):
     print(f"LEI: {lei_status_pairs.get(lei)}")  # Debug print for LEI status
     page = requests.get(url)
     if page.status_code != 200:
+        st.session_state.was_a_lei_skipped = True
         # If 404, check if it's PENDING_VALIDATION
         if page.status_code == 404:
             
@@ -887,6 +892,9 @@ duplicates_text = st.text_area(
 )
 
 if st.button("Process duplicates"):
+
+    # st.session_state.clear() # duvida: isso vai apagar o duplicates_text?
+
     if duplicates_text.strip():
         st.session_state.duplicate_leis = re.findall(
             pattern,
@@ -966,6 +974,7 @@ if st.button("Check Duplicates"):
     has_yellow = False
     duplicate_leis = st.session_state.duplicate_leis
     all_gleif_duplicates = st.session_state.all_gleif_duplicates
+    was_a_lei_skipped = st.session_state.was_a_lei_skipped
 
     # Check duplicates and authority mismatches in a single pass
     for i, results in enumerate(all_results):
@@ -989,13 +998,14 @@ if st.button("Check Duplicates"):
     # Show single warning if any authority mismatches exist
     if there_is_at_least_one_authority_mismatch:
         st.warning("⚠️ One or more candidates have a **different Registration Authority ID.**  These should be checked individually.")    
-    
+    if was_a_lei_skipped:
+        st.warning("⚠️ One or more LEIs could not be checked due to errors in fetching GLEIF data (error 404). These should be checked individually.")
     # Show appropriate final status
     if is_there_a_duplicate:
         pass # (RED ERROr message was already shown.)
     elif has_yellow:
         st.warning("Possible duplicates found. Please review the details below before approving the order.")
-    elif not there_is_at_least_one_authority_mismatch:
+    elif not (there_is_at_least_one_authority_mismatch or was_a_lei_skipped):
         st.success(findings)
 
 
