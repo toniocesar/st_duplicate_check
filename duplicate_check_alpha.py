@@ -440,7 +440,7 @@ def extract_lei_manager_vars(text_lei_manager, debug=False):
 
     # Legal Name
     legal_name_match = re.search(
-        r"Legal Name:\s*\([^\)]*\)\s*(.+?)\s*(?:\(|\n)",
+        r"Legal Name:\s*\n\([^)]*\)\s*(.*?)\s*\(\s*GLEIF Search\s*\)",
         text_lei_manager,
         re.DOTALL
     )
