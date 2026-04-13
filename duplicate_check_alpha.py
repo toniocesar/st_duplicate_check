@@ -419,6 +419,7 @@ def fetch_all_gleif_vars():
     """
     st.session_state.all_gleif_duplicates = []
     st.session_state.skipped_leis = []
+    st.session_state.was_a_lei_skipped = False
     duplicate_leis = st.session_state.duplicate_leis
     progress_bar = st.progress(0)
     status_text = st.empty()
@@ -436,7 +437,7 @@ def fetch_all_gleif_vars():
     # Clear the progress bar and status when done
     progress_bar.empty()
     status_text.empty()
-
+    
 
 def extract_lei_manager_vars(text_lei_manager, debug=False):
 
@@ -1014,10 +1015,9 @@ if st.button("Check Duplicates"):
     if there_is_at_least_one_authority_mismatch:
         st.warning("⚠️ One or more candidates have a **different Registration Authority ID.**  These should be checked individually.")    
     if was_a_lei_skipped:
-        skipped_leis = st.session_state.skipped_leis
-        warning_msg = "⚠️ One or more LEIs could not be checked due to errors in fetching GLEIF data. These should be checked individually:\n\n"
+        warning_msg = "⚠️ The following LEIs could not be fetched and **must be reviewed manually:** \n\n"
         
-        for skipped_lei_info in skipped_leis:
+        for skipped_lei_info in st.session_state.skipped_leis:
             lei = skipped_lei_info["lei"]
             status = skipped_lei_info["status"]
             error_code = skipped_lei_info["error_code"]
@@ -1028,7 +1028,6 @@ if st.button("Check Duplicates"):
                 warning_msg += f"- {lei} ({error_code})\n"
         
         st.warning(warning_msg)
-        st.session_state.was_a_lei_skipped = False # reset this variable for future checks, since it only serves to trigger the warning message.
     # Show appropriate final status
     if is_there_a_duplicate:
         pass # (RED ERROr message was already shown.)
