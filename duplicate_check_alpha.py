@@ -58,6 +58,24 @@ if "skipped_leis" not in st.session_state:
     st.session_state.skipped_leis = []
     skipped_leis = st.session_state.skipped_leis
 
+if "results_ready" not in st.session_state:
+    st.session_state.results_ready = False
+
+if "status_log" not in st.session_state:
+    st.session_state.status_log = []
+
+if "findings" not in st.session_state:
+    st.session_state.findings = ""
+
+if "is_there_a_duplicate" not in st.session_state:
+    st.session_state.is_there_a_duplicate = False
+
+if "there_is_at_least_one_authority_mismatch" not in st.session_state:
+    st.session_state.there_is_at_least_one_authority_mismatch = False
+
+if "has_yellow" not in st.session_state:
+    st.session_state.has_yellow = False
+
 
 # Sidebar Configuration
 with st.sidebar:
@@ -437,7 +455,7 @@ def fetch_all_gleif_vars():
     # Clear the progress bar and status when done
     progress_bar.empty()
     status_text.empty()
-    
+
 
 def extract_lei_manager_vars(text_lei_manager, debug=False):
 
@@ -910,6 +928,7 @@ duplicates_text = st.text_area(
 if st.button("Process duplicates"):
 
     # st.session_state.clear() # duvida: isso vai apagar o duplicates_text?
+    st.session_state.results_ready = False  # Clear previous results when reprocessing
 
     if duplicates_text.strip():
         st.session_state.duplicate_leis = re.findall(
@@ -989,81 +1008,89 @@ if st.button("Check Duplicates"):
     there_is_at_least_one_authority_mismatch = False
     has_yellow = False
     duplicate_leis = st.session_state.duplicate_leis
-    all_gleif_duplicates = st.session_state.all_gleif_duplicates
     was_a_lei_skipped = st.session_state.was_a_lei_skipped
 
     # Check duplicates and authority mismatches in a single pass
     for i, results in enumerate(all_results):
-        # Check authority ID
         authority_id_score = results.get("Authority ID")
-        
         if authority_id_score == 0:
             there_is_at_least_one_authority_mismatch = True
-        
-        # Classify duplicate
         status = classify_candidate_emoji_color(results)
         status_log.append(status)
-        
         if status == "RED":
             findings = f"DUPLICATE ALERT: {duplicate_leis[i]}\n"
             is_there_a_duplicate = True
-            st.error(findings)
         elif status == "YELLOW":
             has_yellow = True
 
+    # Persist all computed state so results survive re-runs
+    st.session_state.status_log = status_log
+    st.session_state.findings = findings
+    st.session_state.is_there_a_duplicate = is_there_a_duplicate
+    st.session_state.there_is_at_least_one_authority_mismatch = there_is_at_least_one_authority_mismatch
+    st.session_state.has_yellow = has_yellow
+    st.session_state.results_ready = True
+
+# Display results — lives outside the button block so it persists across re-runs
+if st.session_state.results_ready:
+    all_results = st.session_state.all_results
+    duplicate_leis = st.session_state.duplicate_leis
+    all_gleif_duplicates = st.session_state.all_gleif_duplicates
+    was_a_lei_skipped = st.session_state.was_a_lei_skipped
+    status_log = st.session_state.status_log
+    findings = st.session_state.findings
+    is_there_a_duplicate = st.session_state.is_there_a_duplicate
+    there_is_at_least_one_authority_mismatch = st.session_state.there_is_at_least_one_authority_mismatch
+    has_yellow = st.session_state.has_yellow
+
+    # Show RED alerts
+    if is_there_a_duplicate:
+        for i, results in enumerate(all_results):
+            if status_log[i] == "RED":
+                st.error(f"DUPLICATE ALERT: {duplicate_leis[i]}\n")
+
     # Show single warning if any authority mismatches exist
     if there_is_at_least_one_authority_mismatch:
-        st.warning("⚠️ One or more candidates have a **different Registration Authority ID.**  These should be checked individually.")    
+        st.warning("⚠️ One or more candidates have a **different Registration Authority ID.**  These should be checked individually.")
     if was_a_lei_skipped:
         warning_msg = "⚠️ The following LEIs could not be fetched and **must be reviewed manually:** \n\n"
-        
         for skipped_lei_info in st.session_state.skipped_leis:
             lei = skipped_lei_info["lei"]
             status = skipped_lei_info["status"]
             error_code = skipped_lei_info["error_code"]
-            
             if status == "PENDING_VALIDATION":
                 warning_msg += f"- {lei} — {status}\n"
             else:
                 warning_msg += f"- {lei} ({error_code})\n"
-        
         st.warning(warning_msg)
+
     # Show appropriate final status
     if is_there_a_duplicate:
-        pass # (RED ERROr message was already shown.)
+        pass  # RED error messages already shown above
     elif has_yellow:
         st.warning("Possible duplicates found. Please review the details below before approving the order.")
     elif not (there_is_at_least_one_authority_mismatch or was_a_lei_skipped):
         st.success(findings)
 
-
-
-
-
     # Display results for each candidate with appropriate emojis and warnings
     for i, results in enumerate(all_results):
-        
         status = status_log[i]
-        
         emoji = {
             "GREEN": "🟢",
             "YELLOW": "🟡",
             "RED": "🔴"
         }[status]
 
-        
         gleif_vars = all_gleif_duplicates[i]
         lei_code = duplicate_leis[i]
-        
+
         # Check if Authority ID is 0 (different)
         authority_warning = " ⚠️ DIFFERENT AUTHORITY" if results.get("Authority ID") == 0 else ""
 
         with st.expander(f"{emoji} Duplicate candidate: {lei_code}{authority_warning}"):
-
             styled_table = build_comparison_table(
                 results,
                 gleif_vars,
                 st.session_state.manager_vars
             )
-
             st.dataframe(styled_table)
