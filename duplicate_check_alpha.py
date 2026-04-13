@@ -52,7 +52,11 @@ if "missing_leis_count" not in st.session_state:
 
 if "was_a_lei_skipped" not in st.session_state:
     st.session_state.was_a_lei_skipped = False
-    was_a_lei_skipped = st.session_state.was_a_lei_skipped     
+    was_a_lei_skipped = st.session_state.was_a_lei_skipped
+
+if "skipped_leis" not in st.session_state:
+    st.session_state.skipped_leis = []
+    skipped_leis = st.session_state.skipped_leis
 
 
 # Sidebar Configuration
@@ -234,17 +238,27 @@ def fetch_gleif_vars(lei: str):
     page = requests.get(url)
     if page.status_code != 200:
         st.session_state.was_a_lei_skipped = True
+        status = lei_status_pairs.get(lei)
         # If 404, check if it's PENDING_VALIDATION
         if page.status_code == 404:
-            
-            status = lei_status_pairs.get(lei)
             if status == "PENDING_VALIDATION":
-                st.warning(f"Skipping {lei} — LEI Status: PENDING_VALIDATION")
+                st.warning(f"Skipping {lei} — {status}")
+                # Add to skipped_leis list
+                st.session_state.skipped_leis.append({
+                    "lei": lei,
+                    "status": status,
+                    "error_code": page.status_code
+                })
                 return None
         
-        # For all other errors (or 404 without PENDING_VALIDATION), show error
+        # For all other errors (or 404 without PENDING_VALIDATION), add to skipped list and show error
+        st.session_state.skipped_leis.append({
+            "lei": lei,
+            "status": status,
+            "error_code": page.status_code
+        })
         print(f"\n\n ********** Error searching for LEI {lei} — status {page.status_code} ********** \n\n")
-        st.write(f"\n\n ********** Error searching for LEI {lei} — status {page.status_code} ********** \n\n")
+        st.warning(f"Skipping LEI {lei} — LEI not found ({page.status_code}) \n\n")
         return
 
     json_data = page.json()
@@ -404,6 +418,7 @@ def fetch_all_gleif_vars():
     This needs to be addressed in the future. 
     """
     st.session_state.all_gleif_duplicates = []
+    st.session_state.skipped_leis = []
     duplicate_leis = st.session_state.duplicate_leis
     progress_bar = st.progress(0)
     status_text = st.empty()
@@ -999,7 +1014,20 @@ if st.button("Check Duplicates"):
     if there_is_at_least_one_authority_mismatch:
         st.warning("⚠️ One or more candidates have a **different Registration Authority ID.**  These should be checked individually.")    
     if was_a_lei_skipped:
-        st.warning("⚠️ One or more LEIs could not be checked due to errors in fetching GLEIF data (error 404). These should be checked individually.")
+        skipped_leis = st.session_state.skipped_leis
+        warning_msg = "⚠️ One or more LEIs could not be checked due to errors in fetching GLEIF data. These should be checked individually:\n\n"
+        
+        for skipped_lei_info in skipped_leis:
+            lei = skipped_lei_info["lei"]
+            status = skipped_lei_info["status"]
+            error_code = skipped_lei_info["error_code"]
+            
+            if status == "PENDING_VALIDATION":
+                warning_msg += f"- {lei} — {status}\n"
+            else:
+                warning_msg += f"- {lei} ({error_code})\n"
+        
+        st.warning(warning_msg)
         st.session_state.was_a_lei_skipped = False # reset this variable for future checks, since it only serves to trigger the warning message.
     # Show appropriate final status
     if is_there_a_duplicate:
