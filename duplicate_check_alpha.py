@@ -1008,7 +1008,7 @@ if st.button("Check Duplicates", use_container_width=True):
     is_there_a_duplicate = False
     there_is_at_least_one_authority_mismatch = False
     has_yellow = False
-    duplicate_leis = st.session_state.duplicate_leis
+    processed_leis = st.session_state.processed_leis
     all_gleif_duplicates = st.session_state.all_gleif_duplicates
     was_a_lei_skipped = st.session_state.was_a_lei_skipped
     
@@ -1024,7 +1024,7 @@ if st.button("Check Duplicates", use_container_width=True):
         
         if authority_id_score == 0:
             there_is_at_least_one_authority_mismatch = True
-            st.session_state.different_authority_candidates.append(duplicate_leis[i])
+            st.session_state.different_authority_candidates.append(processed_leis[i])
         
         # Classify duplicate
         status = classify_candidate_emoji_color(results)
@@ -1032,10 +1032,10 @@ if st.button("Check Duplicates", use_container_width=True):
         
         if status == "RED":
             is_there_a_duplicate = True
-            st.session_state.red_labeled_duplicates.append(duplicate_leis[i])
+            st.session_state.red_labeled_duplicates.append(processed_leis[i])
         elif status == "YELLOW":
             has_yellow = True
-            st.session_state.yellow_labeled_duplicates.append(duplicate_leis[i])
+            st.session_state.yellow_labeled_duplicates.append(processed_leis[i])
 
 
     # Show appropriate final status
