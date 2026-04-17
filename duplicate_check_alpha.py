@@ -70,6 +70,10 @@ if "different_authority_candidates" not in st.session_state:
     st.session_state.different_authority_candidates = []
     different_authority_candidates = st.session_state.different_authority_candidates
 
+if "processed_leis" not in st.session_state:
+    st.session_state.processed_leis = []
+    processed_leis = st.session_state.processed_leis
+
 
 # Sidebar Configuration
 with st.sidebar:
@@ -430,6 +434,7 @@ def fetch_all_gleif_vars():
     This needs to be addressed in the future. 
     """
     st.session_state.all_gleif_duplicates = []
+    st.session_state.processed_leis = []
     st.session_state.skipped_leis = []
     st.session_state.was_a_lei_skipped = False
     duplicate_leis = st.session_state.duplicate_leis
@@ -445,6 +450,7 @@ def fetch_all_gleif_vars():
         result = fetch_gleif_vars(lei)
         if result is not None:
             st.session_state.all_gleif_duplicates.append(result)
+            st.session_state.processed_leis.append(lei)
     
     # Clear the progress bar and status when done
     progress_bar.empty()
@@ -1031,12 +1037,22 @@ if st.button("Check Duplicates", use_container_width=True):
             has_yellow = True
             st.session_state.yellow_labeled_duplicates.append(duplicate_leis[i])
 
-    # Show single warning if any authority mismatches exist
-    if there_is_at_least_one_authority_mismatch:
-        warning_msg = "⚠️ The following candidates have a **different Registration Authority ID.** These should be checked individually:\n\n"
-        for lei in st.session_state.different_authority_candidates:
+
+    # Show appropriate final status
+    if is_there_a_duplicate:
+        error_msg = "🔴 **DUPLICATE ALERT:** The following LEIs are flagged as likely duplicates:\n\n"
+        for lei in st.session_state.red_labeled_duplicates:
+            error_msg += f"- {lei}\n"
+        st.error(error_msg)
+    
+    if has_yellow:
+        warning_msg = "🟡 **Possible duplicates found.** The following candidates require review:\n\n"
+        for lei in st.session_state.yellow_labeled_duplicates:
             warning_msg += f"- {lei}\n"
+        warning_msg += "\nPlease review the details below before approving the order."
         st.warning(warning_msg)
+
+    
     
     if was_a_lei_skipped:
         warning_msg = "⚠️ The following LEIs could not be fetched and **must be reviewed manually:** \n\n"
@@ -1052,18 +1068,12 @@ if st.button("Check Duplicates", use_container_width=True):
                 warning_msg += f"- {lei} ({error_code})\n"
         
         st.warning(warning_msg)
-    # Show appropriate final status
-    if is_there_a_duplicate:
-        error_msg = "🔴 **DUPLICATE ALERT:** The following LEIs are flagged as likely duplicates:\n\n"
-        for lei in st.session_state.red_labeled_duplicates:
-            error_msg += f"- {lei}\n"
-        st.error(error_msg)
-    
-    if has_yellow:
-        warning_msg = "🟡 **Possible duplicates found.** The following candidates require review:\n\n"
-        for lei in st.session_state.yellow_labeled_duplicates:
+
+    # Show single warning if any authority mismatches exist
+    if there_is_at_least_one_authority_mismatch:
+        warning_msg = "⚠️ The following candidates have a **different Registration Authority ID.** These should be checked individually:\n\n"
+        for lei in st.session_state.different_authority_candidates:
             warning_msg += f"- {lei}\n"
-        warning_msg += "\nPlease review the details below before approving the order."
         st.warning(warning_msg)
     
     if not is_there_a_duplicate and not has_yellow and not (there_is_at_least_one_authority_mismatch or was_a_lei_skipped):
@@ -1074,6 +1084,7 @@ if st.button("Check Duplicates", use_container_width=True):
 
 
     # Display results for each candidate with appropriate emojis and warnings
+    processed_leis = st.session_state.processed_leis
     for i, results in enumerate(all_results):
         
         status = status_log[i]
@@ -1086,7 +1097,7 @@ if st.button("Check Duplicates", use_container_width=True):
 
         
         gleif_vars = all_gleif_duplicates[i]
-        lei_code = duplicate_leis[i]
+        lei_code = processed_leis[i]
         
         # Check if Authority ID is 0 (different)
         authority_warning = " ⚠️ DIFFERENT AUTHORITY" if results.get("Authority ID") == 0 else ""
