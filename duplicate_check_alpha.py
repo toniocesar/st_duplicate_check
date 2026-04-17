@@ -907,7 +907,7 @@ duplicates_text = st.text_area(
     height=200
 )
 
-if st.button("Process duplicates"):
+if st.button("Process duplicates", use_container_width=True):
 
     # st.session_state.clear() # duvida: isso vai apagar o duplicates_text?
 
@@ -961,7 +961,7 @@ manager_text = st.text_area(
     height=300
 )
 
-if st.button("Process LEI Manager"):
+if st.button("Process LEI Manager", use_container_width=True):
     
     if manager_text.strip():
         manager_vars = extract_lei_manager_vars(manager_text)
@@ -979,7 +979,7 @@ if st.button("Process LEI Manager"):
         st.warning("Please paste the LEI Manager text first.")
 
 
-if st.button("Check Duplicates"):
+if st.button("Check Duplicates", use_container_width=True):
 
     st.write("Initializing duplicate check...")
     all_results = generate_results()
