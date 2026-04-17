@@ -58,18 +58,6 @@ if "skipped_leis" not in st.session_state:
     st.session_state.skipped_leis = []
     skipped_leis = st.session_state.skipped_leis
 
-if "process_duplicates_active" not in st.session_state:
-    st.session_state.process_duplicates_active = False
-    process_duplicates_active = st.session_state.process_duplicates_active
-
-if "process_lei_manager_active" not in st.session_state:
-    st.session_state.process_lei_manager_active = False
-    process_lei_manager_active = st.session_state.process_lei_manager_active
-
-if "check_duplicates_active" not in st.session_state:
-    st.session_state.check_duplicates_active = False
-    check_duplicates_active = st.session_state.check_duplicates_active
-
 
 # Sidebar Configuration
 with st.sidebar:
@@ -136,24 +124,6 @@ pattern = r'^[A-Z0-9]{20}$'
 pattern_lei_status = r'([A-Z0-9]{20})\n.+?\n.+?\n(ISSUED|PENDING_VALIDATION|LAPSED)'
 pattern_duplicate_count = r'(\d+)\s+duplicate\(s\)\s+found'
 url_stem = "https://api.gleif.org/api/v1/lei-records/"
-
-def activate_process_duplicates():
-    """Activate Process Duplicates button and deactivate others"""
-    st.session_state.process_duplicates_active = True
-    st.session_state.process_lei_manager_active = False
-    st.session_state.check_duplicates_active = False
-
-def activate_process_lei_manager():
-    """Activate Process LEI Manager button and deactivate others"""
-    st.session_state.process_duplicates_active = False
-    st.session_state.process_lei_manager_active = True
-    st.session_state.check_duplicates_active = False
-
-def activate_check_duplicates():
-    """Activate Check Duplicates button and deactivate others"""
-    st.session_state.process_duplicates_active = False
-    st.session_state.process_lei_manager_active = False
-    st.session_state.check_duplicates_active = True
 
 def handle_GST_PAN_reg_ID(gleif_reg_ID: str, manager_reg_ID: str, current_score: float) -> float   :
     """
@@ -937,9 +907,7 @@ duplicates_text = st.text_area(
     height=200
 )
 
-st.button("Process duplicates", on_click=activate_process_duplicates, use_container_width=True)
-
-if st.session_state.process_duplicates_active:
+if st.button("Process duplicates"):
 
     # st.session_state.clear() # duvida: isso vai apagar o duplicates_text?
 
@@ -993,9 +961,7 @@ manager_text = st.text_area(
     height=300
 )
 
-st.button("Process LEI Manager", on_click=activate_process_lei_manager, use_container_width=True)
-
-if st.session_state.process_lei_manager_active:
+if st.button("Process LEI Manager"):
     
     if manager_text.strip():
         manager_vars = extract_lei_manager_vars(manager_text)
@@ -1013,10 +979,7 @@ if st.session_state.process_lei_manager_active:
         st.warning("Please paste the LEI Manager text first.")
 
 
-
-st.button("Check Duplicates", on_click=activate_check_duplicates, use_container_width=True)
-
-if st.session_state.check_duplicates_active:
+if st.button("Check Duplicates"):
 
     st.write("Initializing duplicate check...")
     all_results = generate_results()
@@ -1072,6 +1035,10 @@ if st.session_state.check_duplicates_active:
         st.warning("Possible duplicates found. Please review the details below before approving the order.")
     elif not (there_is_at_least_one_authority_mismatch or was_a_lei_skipped):
         st.success(findings)
+
+
+
+
 
     # Display results for each candidate with appropriate emojis and warnings
     for i, results in enumerate(all_results):
