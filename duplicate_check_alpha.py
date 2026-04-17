@@ -928,7 +928,7 @@ if st.button("Process duplicates", use_container_width=True):
         duplicate_count_match = re.search(pattern_duplicate_count, duplicates_text)
         if duplicate_count_match:
             total_duplicates = int(duplicate_count_match.group(1))
-            found_leis_count = len(st.session_state.duplicate_leis)
+            found_leis_count = len(extracted_leis)
             if total_duplicates > found_leis_count:
                 missing_leis_count = total_duplicates - found_leis_count
                 st.session_state.missing_leis_count = missing_leis_count
