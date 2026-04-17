@@ -912,11 +912,13 @@ if st.button("Process duplicates", use_container_width=True):
     # st.session_state.clear() # duvida: isso vai apagar o duplicates_text?
 
     if duplicates_text.strip():
-        st.session_state.duplicate_leis = re.findall(
+        extracted_leis = re.findall(
             pattern,
             duplicates_text,
             flags=re.MULTILINE
         )
+        # Remove duplicate LEIs while preserving order
+        st.session_state.duplicate_leis = list(dict.fromkeys(extracted_leis))
 
         matches = re.findall(pattern_lei_status, duplicates_text, re.DOTALL)
         lei_status_pairs = {lei: status for lei, status in matches}
