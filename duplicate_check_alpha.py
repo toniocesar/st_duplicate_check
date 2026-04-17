@@ -58,6 +58,18 @@ if "skipped_leis" not in st.session_state:
     st.session_state.skipped_leis = []
     skipped_leis = st.session_state.skipped_leis
 
+if "red_labeled_duplicates" not in st.session_state:
+    st.session_state.red_labeled_duplicates = []
+    red_labeled_duplicates = st.session_state.red_labeled_duplicates
+
+if "yellow_labeled_duplicates" not in st.session_state:
+    st.session_state.yellow_labeled_duplicates = []
+    yellow_labeled_duplicates = st.session_state.yellow_labeled_duplicates
+
+if "different_authority_candidates" not in st.session_state:
+    st.session_state.different_authority_candidates = []
+    different_authority_candidates = st.session_state.different_authority_candidates
+
 
 # Sidebar Configuration
 with st.sidebar:
@@ -993,6 +1005,11 @@ if st.button("Check Duplicates", use_container_width=True):
     duplicate_leis = st.session_state.duplicate_leis
     all_gleif_duplicates = st.session_state.all_gleif_duplicates
     was_a_lei_skipped = st.session_state.was_a_lei_skipped
+    
+    # Clear tracking lists for this check
+    st.session_state.red_labeled_duplicates = []
+    st.session_state.yellow_labeled_duplicates = []
+    st.session_state.different_authority_candidates = []
 
     # Check duplicates and authority mismatches in a single pass
     for i, results in enumerate(all_results):
@@ -1001,21 +1018,26 @@ if st.button("Check Duplicates", use_container_width=True):
         
         if authority_id_score == 0:
             there_is_at_least_one_authority_mismatch = True
+            st.session_state.different_authority_candidates.append(duplicate_leis[i])
         
         # Classify duplicate
         status = classify_candidate_emoji_color(results)
         status_log.append(status)
         
         if status == "RED":
-            findings = f"DUPLICATE ALERT: {duplicate_leis[i]}\n"
             is_there_a_duplicate = True
-            st.error(findings)
+            st.session_state.red_labeled_duplicates.append(duplicate_leis[i])
         elif status == "YELLOW":
             has_yellow = True
+            st.session_state.yellow_labeled_duplicates.append(duplicate_leis[i])
 
     # Show single warning if any authority mismatches exist
     if there_is_at_least_one_authority_mismatch:
-        st.warning("⚠️ One or more candidates have a **different Registration Authority ID.**  These should be checked individually.")    
+        warning_msg = "⚠️ The following candidates have a **different Registration Authority ID.** These should be checked individually:\n\n"
+        for lei in st.session_state.different_authority_candidates:
+            warning_msg += f"- {lei}\n"
+        st.warning(warning_msg)
+    
     if was_a_lei_skipped:
         warning_msg = "⚠️ The following LEIs could not be fetched and **must be reviewed manually:** \n\n"
         
@@ -1032,11 +1054,20 @@ if st.button("Check Duplicates", use_container_width=True):
         st.warning(warning_msg)
     # Show appropriate final status
     if is_there_a_duplicate:
-        pass # (RED ERROr message was already shown.)
-    elif has_yellow:
-        st.warning("Possible duplicates found. Please review the details below before approving the order.")
-    elif not (there_is_at_least_one_authority_mismatch or was_a_lei_skipped):
-        st.success(findings)
+        error_msg = "🔴 **DUPLICATE ALERT:** The following LEIs are flagged as likely duplicates:\n\n"
+        for lei in st.session_state.red_labeled_duplicates:
+            error_msg += f"- {lei}\n"
+        st.error(error_msg)
+    
+    if has_yellow:
+        warning_msg = "🟡 **Possible duplicates found.** The following candidates require review:\n\n"
+        for lei in st.session_state.yellow_labeled_duplicates:
+            warning_msg += f"- {lei}\n"
+        warning_msg += "\nPlease review the details below before approving the order."
+        st.warning(warning_msg)
+    
+    if not is_there_a_duplicate and not has_yellow and not (there_is_at_least_one_authority_mismatch or was_a_lei_skipped):
+        st.success("No duplicates found! You may aprove the order. See below for more details.")
 
 
 
