@@ -235,8 +235,7 @@ df_zipcode = load_zipcode_dictionary()
 
 def fetch_gleif_vars(lei: str):
     """
-    Doesn't actually perform a duplicate check, 
-    but retrieves all relevant information from GLEIF API for a given LEI, 
+    Retrieves all relevant information from GLEIF API for a given LEI, 
     and formats it in a way that can be easily compared to the LEI Manager data.
     
     :param lei: lei code to be checked for duplicates (20-character alphanumeric string)
