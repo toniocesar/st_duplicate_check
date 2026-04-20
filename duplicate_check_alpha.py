@@ -74,6 +74,10 @@ if "processed_leis" not in st.session_state:
     st.session_state.processed_leis = []
     processed_leis = st.session_state.processed_leis
 
+if "results_duplicates_regex" not in st.session_state:
+    st.session_state.results_duplicates_regex = []
+    results_duplicates_regex = st.session_state.results_duplicates_regex
+
 
 # Sidebar Configuration
 with st.sidebar:
@@ -455,6 +459,79 @@ def fetch_all_gleif_vars():
     progress_bar.empty()
     status_text.empty()
     
+
+def advanced_duplicates_text_regex(duplicates_text):
+    """
+    Advanced regex processing for duplicates text.
+    
+    Parameters:
+    - duplicates_text (str): The raw duplicates message text to process
+    
+    Returns:
+    - List of dictionaries containing extracted LEI data and metadata
+    """
+    block_re = re.compile(
+        r'(?ms)^(?P<lei>[0-9A-Z]{20})\n(?P<rest>.*?)(?=\n{2,}[0-9A-Z]{20}\n|\Z)'
+    )
+
+    status_re = re.compile(r'(?m)^(ISSUED|LAPSED|PENDING_VALIDATION)$')
+    zip_re = re.compile(r'(?m)^([A-Z0-9 -]+),.*\(legal address\)$')
+    pair_re = re.compile(
+        r'(?m)(?:^|\n)(?P<registration>[^\n]+?),\s*(?P<authority>RA\d{6})(?=,|\s*-|\n|$)'
+    )
+
+    results = []
+
+    for m in block_re.finditer(duplicates_text):
+        lei = m.group("lei")
+        block = lei + "\n" + m.group("rest")
+        lines = block.splitlines()
+
+        company = lines[1].strip() if len(lines) > 1 else None
+
+        status_match = status_re.search(block)
+        status = status_match.group(1) if status_match else None
+
+        zip_match = zip_re.search(block)
+        zip_code = zip_match.group(1).strip() if zip_match else None
+
+        # Only search registration pairs in the section between company and status
+        reg_section = block
+        if status_match:
+            reg_section = block.split(status, 1)[0]
+
+        pairs = []
+        for pm in pair_re.finditer(reg_section):
+            reg_id = re.sub(r'\s+', ' ', pm.group("registration")).strip()
+            auth_id = pm.group("authority")
+            # skip accidental capture of LEI/company if needed
+            if reg_id != lei and reg_id != company:
+                pairs.append({
+                    "registration_id": reg_id,
+                    "authority_id": auth_id
+                })
+
+        first_registration_id = pairs[0]["registration_id"] if pairs else None
+        first_authority_id = pairs[0]["authority_id"] if pairs else None
+        other_pairs = pairs[1:] if len(pairs) > 1 else []
+
+        results.append({
+            "lei": lei,
+            "company_name": company,
+            "registration_id": first_registration_id,
+            "authority_id": first_authority_id,
+            "other_registration_pairs": other_pairs,
+            "status": status,
+            "zip_code": zip_code
+        })
+    
+    st.session_state.results_duplicates_regex = results
+
+    #for company in results:
+    #    st.write(company)
+
+    return results
+
 
 def extract_lei_manager_vars(text_lei_manager, debug=False):
 
@@ -928,15 +1005,21 @@ if st.button("Process duplicates", use_container_width=True):
 
     # st.session_state.clear() # duvida: isso vai apagar o duplicates_text?
 
+    # Regex to extract all LEIs.
     if duplicates_text.strip():
+        # Send duplicates text to advanced regex processing function
+        advanced_duplicates_text_regex(duplicates_text)
+        
         extracted_leis = re.findall(
             pattern,
             duplicates_text,
             flags=re.MULTILINE
         )
-        # Remove duplicate LEIs while preserving order
+        # Remove duplicate LEIs while preserving order. Very good to have this.
+        # Also saved the duplicate LEIs in session state.
         st.session_state.duplicate_leis = list(dict.fromkeys(extracted_leis))
 
+        # Separate Regex for extracting LEI-Status pairs.
         matches = re.findall(pattern_lei_status, duplicates_text, re.DOTALL)
         lei_status_pairs = {lei: status for lei, status in matches}
         st.session_state.lei_status_pairs = lei_status_pairs
@@ -944,8 +1027,8 @@ if st.button("Process duplicates", use_container_width=True):
         # Extract the total duplicate count from the message and compare
         duplicate_count_match = re.search(pattern_duplicate_count, duplicates_text)
         if duplicate_count_match:
-            total_duplicates = int(duplicate_count_match.group(1))
-            found_leis_count = len(extracted_leis)
+            total_duplicates = int(duplicate_count_match.group(1)) # total_duplicates example: "12 duplicate(s) found. Order locked."
+            found_leis_count = len(extracted_leis) # Important to use extracted_leis here instead of duplicate_leis, bacause the total_duplicates counts the same lei twice if it appears in the notes.
             if total_duplicates > found_leis_count:
                 missing_leis_count = total_duplicates - found_leis_count
                 st.session_state.missing_leis_count = missing_leis_count
@@ -954,7 +1037,7 @@ if st.button("Process duplicates", use_container_width=True):
                 st.session_state.missing_leis_count = None
 
         if st.session_state.duplicate_leis:
-            st.success(f"{len(st.session_state.duplicate_leis)} LEI(s) found:")
+            st.success(f"{len(st.session_state.duplicate_leis)} LEI(s) found:") # Correct. If the same LEI appears twice, it will only count as one.
             for lei in st.session_state.duplicate_leis:
                 status = lei_status_pairs.get(lei)
                 if status and status != "ISSUED":
