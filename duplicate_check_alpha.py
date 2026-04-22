@@ -251,16 +251,28 @@ def fetch_gleif_vars(lei: str):
     lei_status_pairs = st.session_state.lei_status_pairs
     gleif_variables = {}
     url = f"{url_stem}{lei}"
+    is_this_lei_skipped = False
 
 
     print(f"LEI: {lei_status_pairs.get(lei)}")  # Debug print for LEI status
     page = requests.get(url)
     if page.status_code != 200:
-        st.session_state.was_a_lei_skipped = True
+        
+        
         status = lei_status_pairs.get(lei)
-        # If 404, check if it's PENDING_VALIDATION
-        if page.status_code == 404:
-            if status == "PENDING_VALIDATION":
+        
+        # Try to extract available data from advanced regex results
+        results_duplicates_regex = st.session_state.results_duplicates_regex
+        extracted_data = None
+        for result in results_duplicates_regex:
+            if result.get("lei") == lei:
+                extracted_data = result
+                break
+        
+        if extracted_data is None or extracted_data.get("insufficient_regex_info") == True:
+            st.session_state.was_a_lei_skipped = True
+            is_this_lei_skipped = True
+            if page.status_code == 404:                
                 st.warning(f"Skipping {lei} — {status}")
                 # Add to skipped_leis list
                 st.session_state.skipped_leis.append({
@@ -268,17 +280,56 @@ def fetch_gleif_vars(lei: str):
                     "status": status,
                     "error_code": page.status_code
                 })
-                return None
+                # return None
+                return None # fetch_all_gleif_vars entende "None" como um skipped_lei
+            
+            # For all other errors (or 404 without PENDING_VALIDATION), add to skipped list and show error
+            st.session_state.skipped_leis.append({
+                "lei": lei,
+                "status": status,
+                "error_code": page.status_code
+            })
+            print(f"\n\n ********** Error searching for LEI {lei} — status {page.status_code} ********** \n\n")
+            st.warning(f"Skipping LEI {lei} — LEI not found ({page.status_code}) \n\n")
+            return None
+
+        # Populate gleif_variables with extracted data
+        else:
+
+            gleif_variables["legal_name"] = extracted_data.get("company_name")
+            gleif_variables["zipcode"] = extracted_data.get("zip_code")
+            gleif_variables["reg_ID"] = extracted_data.get("registration_id")
+            gleif_variables["authority_ID"] = extracted_data.get("authority_id")
+            
+            # Build authority_pairs from registration data
+            authority_pairs = []
+            if extracted_data.get("registration_id") and extracted_data.get("authority_id"):
+                authority_pairs.append({
+                    "authority_ID": extracted_data.get("authority_id"),
+                    "reg_ID": extracted_data.get("registration_id")
+                })
+            if extracted_data.get("other_registration_pairs"):
+                for pair in extracted_data.get("other_registration_pairs"):
+                    authority_pairs.append({
+                        "authority_ID": pair.get("authority_id"),
+                        "reg_ID": pair.get("registration_id")
+                    })
+            gleif_variables["authority_pairs"] = authority_pairs if authority_pairs else []
         
-        # For all other errors (or 404 without PENDING_VALIDATION), add to skipped list and show error
-        st.session_state.skipped_leis.append({
-            "lei": lei,
-            "status": status,
-            "error_code": page.status_code
-        })
-        print(f"\n\n ********** Error searching for LEI {lei} — status {page.status_code} ********** \n\n")
-        st.warning(f"Skipping LEI {lei} — LEI not found ({page.status_code}) \n\n")
-        return
+            # Set remaining attributes to None
+            gleif_variables["date"] = None
+            gleif_variables["authority_local_name"] = None
+            gleif_variables["address"] = None
+            gleif_variables["jurisdiction"] = None
+            gleif_variables["legal_form"] = None
+            gleif_variables["legal_form_short"] = None
+            gleif_variables["legal_form_other"] = None
+
+
+        
+
+        # return
+            return gleif_variables
 
     json_data = page.json()
 
@@ -515,6 +566,8 @@ def advanced_duplicates_text_regex(duplicates_text):
         first_authority_id = pairs[0]["authority_id"] if pairs else None
         other_pairs = pairs[1:] if len(pairs) > 1 else []
 
+        insufficient_regex_info = first_authority_id is None
+
         results.append({
             "lei": lei,
             "company_name": company,
@@ -522,13 +575,15 @@ def advanced_duplicates_text_regex(duplicates_text):
             "authority_id": first_authority_id,
             "other_registration_pairs": other_pairs,
             "status": status,
-            "zip_code": zip_code
+            "zip_code": zip_code,
+            "insufficient_regex_info": insufficient_regex_info
         })
     
     st.session_state.results_duplicates_regex = results
 
-    #for company in results:
-    #    st.write(company)
+    for company in results:
+        #st.write(company)
+        print(company)
 
     return results
 
@@ -775,6 +830,9 @@ def is_streamlit_running():
 
 def get_feature_row_color(feature, value):
     if value is None:
+        # Return yellow for missing critical data
+        if feature in ["Creation Date", "ZIP Code", "Registration ID", "Address"]:
+            return "background-color: #ffeb9c"  # amarelo
         return ""
     
     # Authority ID gets a special treatment. Only yellow (if different) or no-color otherwise.
@@ -958,8 +1016,8 @@ def classify_candidate_emoji_color(results):
     zipcode = scores.get("ZIP Code")
 
     # Se faltar algo essencial
-    if legal_name is None or address is None or date is None:
-        return "UNKNOWN"
+    #if legal_name is None or address is None:
+    #    return "UNKNOWN"
 
     # =========================
     # 🔴 PROVÁVEL DUPLICATA
@@ -1115,7 +1173,7 @@ if st.button("Check Duplicates", use_container_width=True):
         if status == "RED":
             is_there_a_duplicate = True
             st.session_state.red_labeled_duplicates.append(processed_leis[i])
-        elif status == "YELLOW":
+        elif status == "YELLOW" or status == "UNKNOWN":
             has_yellow = True
             st.session_state.yellow_labeled_duplicates.append(processed_leis[i])
 
@@ -1174,7 +1232,8 @@ if st.button("Check Duplicates", use_container_width=True):
         emoji = {
             "GREEN": "🟢",
             "YELLOW": "🟡",
-            "RED": "🔴"
+            "RED": "🔴",
+            "UNKNOWN": "🟡" # removi o unknown. acontecia se legal_name ou address fossem None. Mas isso so costuma acontecer nos casos de pending validation. Nenhum pending validation que passar pelo advanced regex vai ter address, entao seriam todos amarelos. falei com o Korbi e era pra gente ignorar esses casos, ou seja, pode ser verde entao. logo, fez mais sentido so tirar essa opcao da funcao das cores das bolinhas la.
         }[status]
 
         
