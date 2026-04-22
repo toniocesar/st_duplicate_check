@@ -26,21 +26,17 @@ if "duplicate_leis" not in st.session_state: # stores all leis found in the dupl
     st.session_state.duplicate_leis = []
     duplicate_leis = st.session_state.duplicate_leis
     
-if "processed_leis" not in st.session_state: # all duplicate_leis that are not skipped.
+if "processed_leis" not in st.session_state: # all duplicate_leis that are not skipped. This is what we mostly use because we dont need the skipped leis anymore.
     st.session_state.processed_leis = []
     processed_leis = st.session_state.processed_leis
 
-if "all_gleif_duplicates" not in st.session_state: # list with all processed LEIs. For each one, all gleif features are stored. They are retreived via API, or through the advanced regex function if the API call returns an error.
-    st.session_state.all_gleif_duplicates = []
-    all_gleif_duplicates = st.session_state.all_gleif_duplicates
+if "all_gleif_duplicates" not in st.session_state: # list with all processed LEIs. Each entry contains all gleif features for this LEI. This is done by appending the return of the fetch_gleif_vars function. They are retreived via API, or through the advanced regex function if the API call returns an error.
+    st.session_state.all_gleif_duplicates = [] # Created by: appending all non-None results from fetch_gleif_vars. Reset in fetch_all_gleif_vars (right after clicking Process Duplicates)
+    all_gleif_duplicates = st.session_state.all_gleif_duplicates # Used for: generate_results and build_comparison_table
 
 if "all_results" not in st.session_state: # list with all results of the comparison between GLEIF and Manager data. Each item in the list is a dictionary with all features and scores for a given LEI.
     st.session_state.all_results = []
     all_results = st.session_state.all_results
-
-if "gleif_variables" not in st.session_state: # This may be redundent. But just deleting it will definetly not work. Think about this!!
-    st.session_state.gleif_variables = {}
-    gleif_variables = st.session_state.gleif_variables
 
 if "manager_vars" not in st.session_state: # Contains all features extracted from the current company inn LEI-Manager
     st.session_state.manager_vars = {}
@@ -836,9 +832,8 @@ def generate_results():
         }
 
         all_results.append(results)
-        st.session_state.all_results = all_results
-        st.session_state.gleif_variables = gleif_variables
 
+    st.session_state.all_results = all_results
     return all_results
 
 
