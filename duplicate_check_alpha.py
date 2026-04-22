@@ -22,59 +22,59 @@ from numpy.random import default_rng as rng
 
 ### Variable Declarations
 
-if "duplicate_leis" not in st.session_state:
+if "duplicate_leis" not in st.session_state: # stores all leis found in the duplicates_text. LEIs are stored in order of apperance. Each LEI will only appear once (if it is mentioned more than once in the duplicates message, it will still only be stored once in this list)
     st.session_state.duplicate_leis = []
     duplicate_leis = st.session_state.duplicate_leis
-
-if "all_gleif_duplicates" not in st.session_state:
-    st.session_state.all_gleif_duplicates = []
-    all_gleif_duplicates = st.session_state.all_gleif_duplicates
-
-if "all_results" not in st.session_state:
-    st.session_state.all_results = []
-    all_results = st.session_state.all_results
-
-if "gleif_variables" not in st.session_state:
-    st.session_state.gleif_variables = {}
-    gleif_variables = st.session_state.gleif_variables
-
-if "manager_vars" not in st.session_state:
-    st.session_state.manager_vars = {}
-    manager_vars = st.session_state.manager_vars
-
-if "lei_status_pairs" not in st.session_state:
-    st.session_state.lei_status_pairs = {}
-    lei_status_pairs = st.session_state.lei_status_pairs
-
-if "missing_leis_count" not in st.session_state:
-    st.session_state.missing_leis_count = None
-    missing_leis_count = st.session_state.missing_leis_count
-
-if "was_a_lei_skipped" not in st.session_state:
-    st.session_state.was_a_lei_skipped = False
-    was_a_lei_skipped = st.session_state.was_a_lei_skipped
-
-if "skipped_leis" not in st.session_state:
-    st.session_state.skipped_leis = []
-    skipped_leis = st.session_state.skipped_leis
-
-if "red_labeled_duplicates" not in st.session_state:
-    st.session_state.red_labeled_duplicates = []
-    red_labeled_duplicates = st.session_state.red_labeled_duplicates
-
-if "yellow_labeled_duplicates" not in st.session_state:
-    st.session_state.yellow_labeled_duplicates = []
-    yellow_labeled_duplicates = st.session_state.yellow_labeled_duplicates
-
-if "different_authority_candidates" not in st.session_state:
-    st.session_state.different_authority_candidates = []
-    different_authority_candidates = st.session_state.different_authority_candidates
-
-if "processed_leis" not in st.session_state:
+    
+if "processed_leis" not in st.session_state: # all duplicate_leis that are not skipped.
     st.session_state.processed_leis = []
     processed_leis = st.session_state.processed_leis
 
-if "results_duplicates_regex" not in st.session_state:
+if "all_gleif_duplicates" not in st.session_state: # list with all processed LEIs. For each one, all gleif features are stored. They are retreived via API, or through the advanced regex function if the API call returns an error.
+    st.session_state.all_gleif_duplicates = []
+    all_gleif_duplicates = st.session_state.all_gleif_duplicates
+
+if "all_results" not in st.session_state: # list with all results of the comparison between GLEIF and Manager data. Each item in the list is a dictionary with all features and scores for a given LEI.
+    st.session_state.all_results = []
+    all_results = st.session_state.all_results
+
+if "gleif_variables" not in st.session_state: # This may be redundent. But just deleting it will definetly not work. Think about this!!
+    st.session_state.gleif_variables = {}
+    gleif_variables = st.session_state.gleif_variables
+
+if "manager_vars" not in st.session_state: # Contains all features extracted from the current company inn LEI-Manager
+    st.session_state.manager_vars = {}
+    manager_vars = st.session_state.manager_vars
+
+if "lei_status_pairs" not in st.session_state: # Uses a unique regex to grab a lei and its status (ISSUED, LAPSED etc.) from the duplicates message. This needs a rework, since I believe its only grabbing the status if it appears a certain fixed number of lines down.
+    st.session_state.lei_status_pairs = {}
+    lei_status_pairs = st.session_state.lei_status_pairs
+
+if "missing_leis_count" not in st.session_state: # Currently, this is only used inside the "Process Duplicates" button to issue a warning if not all leis are present in the duplicates message (likely because of the max character limit of 10000 characters). This means we dont even need this as a session state right now. However, we should use this session state to issue a warning in the end (when pressing the "Check Duplicates" button) to remind operators that not all leis may have been processed.
+    st.session_state.missing_leis_count = None
+    missing_leis_count = st.session_state.missing_leis_count
+
+if "was_a_lei_skipped" not in st.session_state: # Indicates if any LEI was skipped during processing
+    st.session_state.was_a_lei_skipped = False
+    was_a_lei_skipped = st.session_state.was_a_lei_skipped
+
+if "skipped_leis" not in st.session_state: # List of LEIs that were skipped during processing
+    st.session_state.skipped_leis = []
+    skipped_leis = st.session_state.skipped_leis
+
+if "red_labeled_duplicates" not in st.session_state: # Stores all duplicates that received a RED label, meaning they are likely duplicates. This is used for the final display of results.
+    st.session_state.red_labeled_duplicates = []
+    red_labeled_duplicates = st.session_state.red_labeled_duplicates
+
+if "yellow_labeled_duplicates" not in st.session_state: # Stores all duplicates that received a YELLOW label, meaning they are possible duplicates. This is used for the final display of results.
+    st.session_state.yellow_labeled_duplicates = []
+    yellow_labeled_duplicates = st.session_state.yellow_labeled_duplicates
+
+if "different_authority_candidates" not in st.session_state: # Stores all duplicates that have different authorities. This is used for the final display of results.
+    st.session_state.different_authority_candidates = []
+    different_authority_candidates = st.session_state.different_authority_candidates
+
+if "results_duplicates_regex" not in st.session_state: # Stores the results of the advanced regex function that extracts data from the duplicates message. This is used to complement the data retrieved from the API, in cases where the API returns an error (eg because the LEI is in PENDING_VALIDATION status, and therefore not yet searchable in the GLEIF database).
     st.session_state.results_duplicates_regex = []
     results_duplicates_regex = st.session_state.results_duplicates_regex
 
@@ -147,6 +147,8 @@ url_stem = "https://api.gleif.org/api/v1/lei-records/"
 
 def handle_GST_PAN_reg_ID(gleif_reg_ID: str, manager_reg_ID: str, current_score: float) -> float   :
     """
+    Called by the "Check Duplicates" button (through the generate_results function).
+    
     Custom handling for GST/PAN Registration IDs (specific to RA000754 - India).
     Since the PAN number is embedded within the GSTRegistration ID and is a critical identifier,
     we must consider this test
@@ -156,6 +158,8 @@ def handle_GST_PAN_reg_ID(gleif_reg_ID: str, manager_reg_ID: str, current_score:
 
 def handle_no_authority_check() -> float:
     """
+    Called by the "Check Duplicates" button (through the find_best_authority_match function).
+    
     For cases like Germany, where all reg_IDs are issued by the same
     authority, but with different authority IDs.
 
@@ -239,6 +243,8 @@ df_zipcode = load_zipcode_dictionary()
 
 def fetch_gleif_vars(lei: str):
     """
+    Called by the "Process Duplicates" button (through the fetch_all_gleif_vars function).
+    
     Retrieves all relevant information from GLEIF API for a given LEI, 
     and formats it in a way that can be easily compared to the LEI Manager data.
     
@@ -415,6 +421,8 @@ def fetch_gleif_vars(lei: str):
 
 def extract_zipcode(address: str, jurisdiction_iso: str) -> str:
     '''
+    Called by the "Process LEI Manager" button (through the extract_lei_manager_vars function).
+    
     Extracts the zipcode from an address string using a regex pattern
     specific to the jurisdiction (country ISO code).
     
@@ -450,15 +458,17 @@ def extract_zipcode(address: str, jurisdiction_iso: str) -> str:
 
 
 def concat_address_fields(address: dict) -> str:
-    '''
+    """
+    Called by the "Process Duplicates" button (through the fetch_gleif_vars function).
+    
     Concatenates the relevant fields of the address dictionary into a single string, 
     while ignoring certain keys and handling None values and lists appropriately.
     
     :param address: Address dictionary containing various address fields
     :type address: dict
-    :return: Description
+    :return: Concatenated address string
     :rtype: str
-    '''
+    """
     ignore_keys = {"language", "region", "country"}
     parts = []
 
@@ -479,8 +489,9 @@ def concat_address_fields(address: dict) -> str:
 
     return ", ".join(parts)
 
-def fetch_all_gleif_vars():
+def fetch_all_gleif_vars(): 
     """
+    Called by the "Process Duplicates" button.
     Runs duplicate checks for all LEIs found in the duplicates message, 
     and stores the results in session state.
 
@@ -513,6 +524,8 @@ def fetch_all_gleif_vars():
 
 def advanced_duplicates_text_regex(duplicates_text):
     """
+    Called by the "Process Duplicates" button.
+    
     Advanced regex processing for duplicates text.
     
     Parameters:
@@ -591,6 +604,8 @@ def advanced_duplicates_text_regex(duplicates_text):
 def extract_lei_manager_vars(text_lei_manager, debug=False):
 
     """
+    Called by the "Process LEI Manager" button.
+    
     Extracts manager_vars from the full text of the LEI Manager.
     These are the variables of the company we want to check for duplicates.
 
@@ -712,7 +727,9 @@ def extract_lei_manager_vars(text_lei_manager, debug=False):
     return manager_vars
 
 def authority_ID_check(gleif_authority_ID, manager_authority_ID):
-
+    """
+    Called by the "Check Duplicates" button (through the find_best_authority_match function).
+    """
     if gleif_authority_ID in {"RA777777", "RA888888", "RA999999"} or manager_authority_ID in {"RA777777", "RA888888", "RA999999"}:
         return 50  # N/A, não é possível comparar
     authority_ID_score = fuzz.ratio(gleif_authority_ID, manager_authority_ID)
@@ -723,7 +740,9 @@ def authority_ID_check(gleif_authority_ID, manager_authority_ID):
     return 0  # Fallback: return 0 if score is None or any other case
     
 def find_best_authority_match(gleif_authority_pairs, manager_authority_pairs, manager_jurisdiction):
-   
+    """
+    Called by the "Check Duplicates" button (through the generate_results function).
+    """
     if not gleif_authority_pairs or not manager_authority_pairs:
         return None, None, None, None
 
@@ -755,7 +774,9 @@ def find_best_authority_match(gleif_authority_pairs, manager_authority_pairs, ma
 
 
 def generate_results():
-
+    """
+    Called by the "Check Duplicates" button.
+    """
     st.session_state.all_results = []
     
     all_results = []
@@ -829,6 +850,9 @@ def is_streamlit_running():
 
 
 def get_feature_row_color(feature, value):
+    """
+    Called by the "Check Duplicates" button (through the build_comparison_table function).
+    """
     if value is None:
         # Return yellow for missing critical data
         if feature in ["Creation Date", "ZIP Code", "Registration ID", "Address"]:
@@ -884,7 +908,9 @@ def get_feature_row_color(feature, value):
 
 
 def build_comparison_table(results, gleif_vars, manager_vars):
-
+    """
+    Called by the "Check Duplicates" button.
+    """
     rows = []
 
     for feature, score in results.items():
@@ -997,6 +1023,8 @@ def plot_scores(scores_list, title="Feature Similarity Scores"):
 
 def classify_candidate_emoji_color(results):
     """
+    Called by the "Check Duplicates" button.
+    
     Classifies duplicate candidates based on their similarity scores for key features,
     using predefined thresholds to determine if they are 
         -likely duplicates (RED), 
