@@ -258,6 +258,8 @@ def fetch_gleif_vars(lei: str):
 
     print(f"LEI: {lei_status_pairs.get(lei)}")  # Debug print for LEI status
     page = requests.get(url)
+
+    # If we cant retrieve API data:
     if page.status_code != 200:
         
         
@@ -271,6 +273,7 @@ def fetch_gleif_vars(lei: str):
                 extracted_data = result
                 break
         
+        # Skip LEI, return None
         if extracted_data is None or extracted_data.get("insufficient_regex_info") == True:
             st.session_state.was_a_lei_skipped = True
             is_this_lei_skipped = True
@@ -295,7 +298,7 @@ def fetch_gleif_vars(lei: str):
             st.warning(f"Skipping LEI {lei} — LEI not found ({page.status_code}) \n\n")
             return None
 
-        # Populate gleif_variables with extracted data
+        # Populate gleif_variables with extracted data from advanced_regex function. Return gleif_variables.
         else:
 
             gleif_variables["legal_name"] = extracted_data.get("company_name")
@@ -333,6 +336,7 @@ def fetch_gleif_vars(lei: str):
         # return
             return gleif_variables
 
+    # If API call is successful, proceed with normal data extraction:
     json_data = page.json()
 
     DEFAULT_DATE = datetime(1, 1, 1)
