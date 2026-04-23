@@ -771,6 +771,13 @@ def authority_ID_check(gleif_authority_ID: str, manager_authority_ID: str) -> fl
 def find_best_authority_match(gleif_authority_pairs: list, manager_authority_pairs: list, manager_jurisdiction: str | None) -> tuple:
     """
     Called by the "Check Duplicates" button (through the generate_results function).
+    Note: 
+        In some cases where we have multiple MANAGER authorities, the table will
+        show a score of 100, but you will see that the authority IDs don't match.
+        This is because for every gleif candidate that goes through this function,
+        we change what the MANAGER authority is. So, the program is working fine,
+        but this will look a little weird. Too complicated to fix right now, maybe
+        in the future.
     """
     if not gleif_authority_pairs or not manager_authority_pairs:
         return None, None, None, None
