@@ -780,14 +780,14 @@ def find_best_authority_match(gleif_authority_pairs: list, manager_authority_pai
     best_manager_pair = manager_authority_pairs[0]
 
     best_authority_score = authority_ID_check(best_gleif_pair["authority_ID"], best_manager_pair["authority_ID"])
-    best_reg_ID_score = fuzz.ratio(str(best_gleif_pair["reg_ID"]), str(best_manager_pair["reg_ID"])) if best_gleif_pair.get("reg_ID") and best_manager_pair.get("reg_ID") else None
+    best_reg_ID_score = fuzz.ratio(str(best_gleif_pair["reg_ID"]).replace(" ", ""), str(best_manager_pair["reg_ID"]).replace(" ", "")) if best_gleif_pair.get("reg_ID") and best_manager_pair.get("reg_ID") else None
 
     if best_authority_score != 100:
         for gleif_pair in gleif_authority_pairs:
             for manager_pair in manager_authority_pairs:
                 current_authority_score = authority_ID_check(gleif_pair["authority_ID"], manager_pair["authority_ID"])
                 if current_authority_score == 100:
-                    current_reg_ID_score = fuzz.ratio(str(gleif_pair["reg_ID"]), str(manager_pair["reg_ID"])) if gleif_pair.get("reg_ID") and manager_pair.get("reg_ID") else None
+                    current_reg_ID_score = fuzz.ratio(str(gleif_pair["reg_ID"]).replace(" ", ""), str(manager_pair["reg_ID"]).replace(" ", "")) if gleif_pair.get("reg_ID") and manager_pair.get("reg_ID") else None
                     best_reg_ID_score = current_reg_ID_score
                     best_authority_score = current_authority_score
                     best_gleif_pair = gleif_pair
@@ -1256,15 +1256,14 @@ def _build_status_messages(classification: dict, was_a_lei_skipped: bool) -> dic
     
     # YELLOW possible duplicates
     if classification["yellow_leis"]:
-        warning_msg = "🟡 **Possible duplicates found.** The following candidates require review:\n\n"
+        warning_msg = ".🟡 **Possible duplicates found.** The following candidates require review:\n\n"
         for lei in classification["yellow_leis"]:
             warning_msg += f"- {lei}\n"
-        warning_msg += "\nPlease review the details below before approving the order."
         messages["yellow_msg"] = warning_msg
     
     # Skipped LEIs
     if was_a_lei_skipped:
-        warning_msg = "⚠️ The following LEIs could not be fetched and **must be reviewed manually:** \n\n"
+        warning_msg = ".⚠️ **Skipped LEIs.** The following LEIs could not be fetched and **must be reviewed manually:** \n\n"
         for skipped_lei_info in st.session_state.skipped_leis:
             lei = skipped_lei_info["lei"]
             status = skipped_lei_info["status"]
@@ -1278,7 +1277,7 @@ def _build_status_messages(classification: dict, was_a_lei_skipped: bool) -> dic
     
     # Authority mismatch warning
     if classification["has_authority_mismatch"]:
-        warning_msg = "⚠️ The following candidates have a **different Registration Authority ID.** These should be checked individually:\n\n"
+        warning_msg = ".⚠️ **Authority Mismatch.** The following candidates have a **different Registration Authority ID.** These should be checked individually:\n\n"
         for lei in classification["mismatched_leis"]:
             warning_msg += f"- {lei}\n"
         messages["authority_msg"] = warning_msg
@@ -1296,14 +1295,17 @@ def _display_status_messages(messages: dict) -> None:
     if messages["error_msg"]:
         st.error(messages["error_msg"])
     
+    # Combine all warnings into a single message
+    combined_warnings = []
     if messages["yellow_msg"]:
-        st.warning(messages["yellow_msg"])
-    
+        combined_warnings.append(messages["yellow_msg"])
     if messages["skipped_msg"]:
-        st.warning(messages["skipped_msg"])
-    
+        combined_warnings.append(messages["skipped_msg"])
     if messages["authority_msg"]:
-        st.warning(messages["authority_msg"])
+        combined_warnings.append(messages["authority_msg"])
+    
+    if combined_warnings:
+        st.warning("\n---\n".join(combined_warnings), icon = None)
     
     if messages["success_msg"]:
         st.success(messages["success_msg"])
@@ -1480,6 +1482,45 @@ manager_text = st.text_area(
 
 if st.button("Process LEI Manager", use_container_width=True):
     
+    text = """
+    not_idented\n
+    - idented\n
+    - idented\n
+    - idented\n
+    not_idented\n
+    - idented\n
+    - idented\n
+    - idented\n
+    not_idented\n
+
+    """   
+    
+    text2 = """
+    not_idented
+    \n- idented\n
+    - even_more_idented\n
+    - even_more_idented\n
+    idented
+    - even_more_idented\n
+    - even_more_idented\n
+    - even_more_idented\n
+    idented\n
+    """
+    text3 = """
+    not_idented\n
+    not_idented (but in a box that can be copied. Box starts here)\n
+    - idented (but in a box that can be copied.)\n
+    - idented (but in a box that can be copied.)\n
+    - idented (but in a box that can be copied.)\n
+    not_idented (but in a box that can be copied.)\n
+    - idented (but in a box that can be copied.)\n
+    - idented (but in a box that can be copied. Box ends here)\n
+    \n- idented\n
+    not_idented\n
+    """
+    #st.warning(text)
+    #st.warning(text2)
+    #st.warning(text3)
     if manager_text.strip():
         manager_vars = extract_lei_manager_vars(manager_text)
         if manager_vars["legal_name"] is not None:
