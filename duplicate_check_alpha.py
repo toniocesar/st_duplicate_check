@@ -205,7 +205,7 @@ SCORE_THRESHOLDS = {
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(BASE_DIR, "data")
 
-# Functions
+# === DATA LOADING ===
 
 @st.cache_data
 def load_gleif_authority():
@@ -237,189 +237,210 @@ df_gleif_authority = load_gleif_authority()
 df_RA_format = load_RAformat_dictionary()
 df_zipcode = load_zipcode_dictionary()
 
-def fetch_gleif_vars(lei: str):
+# === DATA FETCHING ===
+
+def _build_authority_pairs_from_json(json_data: dict) -> list:
     """
-    Called by the "Process Duplicates" button (through the fetch_all_gleif_vars function).
-    
-    Retrieves all relevant information from GLEIF API for a given LEI, 
-    and formats it in a way that can be easily compared to the LEI Manager data.
-    
-    :param lei: lei code to be checked for duplicates (20-character alphanumeric string)
-    :type lei: str
-
-    returns:
-    - gleif_variables (dict): dicionário contendo as variáveis extraídas da API
+    Extracts authority pairs from GLEIF API JSON response.
+    Includes both primary registration authority and other validation authorities.
     """
-    lei_status_pairs = st.session_state.lei_status_pairs
-    gleif_variables = {}
-    url = f"{url_stem}{lei}"
-    is_this_lei_skipped = False
-
-
-    print(f"LEI: {lei_status_pairs.get(lei)}")  # Debug print for LEI status
-    page = requests.get(url)
-
-    # If we cant retrieve API data:
-    if page.status_code != 200:
-        
-        
-        status = lei_status_pairs.get(lei)
-        
-        # Try to extract available data from advanced regex results
-        results_duplicates_regex = st.session_state.results_duplicates_regex
-        extracted_data = None
-        for result in results_duplicates_regex:
-            if result.get("lei") == lei:
-                extracted_data = result
-                break
-        
-        # Skip LEI, return None
-        if extracted_data is None or extracted_data.get("insufficient_regex_info") == True:
-            st.session_state.was_a_lei_skipped = True
-            is_this_lei_skipped = True
-            if page.status_code == 404:                
-                st.warning(f"Skipping {lei} — {status}")
-                # Add to skipped_leis list
-                st.session_state.skipped_leis.append({
-                    "lei": lei,
-                    "status": status,
-                    "error_code": page.status_code
-                })
-                # return None
-                return None # fetch_all_gleif_vars entende "None" como um skipped_lei
-            
-            # For all other errors (or 404 without PENDING_VALIDATION), add to skipped list and show error
-            st.session_state.skipped_leis.append({
-                "lei": lei,
-                "status": status,
-                "error_code": page.status_code
-            })
-            print(f"\n\n ********** Error searching for LEI {lei} — status {page.status_code} ********** \n\n")
-            st.warning(f"Skipping LEI {lei} — LEI not found ({page.status_code}) \n\n")
-            return None
-
-        # Populate gleif_variables with extracted data from advanced_regex function. Return gleif_variables.
-        else:
-
-            gleif_variables["legal_name"] = extracted_data.get("company_name")
-            gleif_variables["zipcode"] = extracted_data.get("zip_code")
-            gleif_variables["reg_ID"] = extracted_data.get("registration_id")
-            gleif_variables["authority_ID"] = extracted_data.get("authority_id")
-            
-            # Build authority_pairs from registration data
-            authority_pairs = []
-            if extracted_data.get("registration_id") and extracted_data.get("authority_id"):
-                authority_pairs.append({
-                    "authority_ID": extracted_data.get("authority_id"),
-                    "reg_ID": extracted_data.get("registration_id")
-                })
-            if extracted_data.get("other_registration_pairs"):
-                for pair in extracted_data.get("other_registration_pairs"):
-                    authority_pairs.append({
-                        "authority_ID": pair.get("authority_id"),
-                        "reg_ID": pair.get("registration_id")
-                    })
-            gleif_variables["authority_pairs"] = authority_pairs if authority_pairs else []
-        
-            # Set remaining attributes to None
-            gleif_variables["date"] = None
-            gleif_variables["authority_local_name"] = None
-            gleif_variables["address"] = None
-            gleif_variables["jurisdiction"] = None
-            gleif_variables["legal_form"] = None
-            gleif_variables["legal_form_short"] = None
-            gleif_variables["legal_form_other"] = None
-
-
-        
-
-        # return
-            return gleif_variables
-
-    # If API call is successful, proceed with normal data extraction:
-    json_data = page.json()
-
-    DEFAULT_DATE = datetime(1, 1, 1)
-
-    # GLEIF Date
-    gleif_date = json_data["data"]["attributes"]["entity"]["creationDate"]
-    if gleif_date is None:
-        gleif_date = DEFAULT_DATE
-    else:
-        gleif_date = datetime.fromisoformat(gleif_date).replace(tzinfo=None)
-    gleif_variables["date"] = gleif_date
-
-    # GLEIF authority ID (RA code of the authority that issued the LEI)
-    gleif_authority_ID = json_data["data"]["attributes"]["entity"]["registeredAt"]["id"]
-    gleif_variables["authority_ID"] = gleif_authority_ID
-
-    # GLEIF authority local name
-    gleif_authority_temp = df_gleif_authority.loc[df_gleif_authority["Registration Authority Code"] == gleif_authority_ID, "Local name of organisation responsible for the Register"]
-    gleif_authority_local_name= gleif_authority_temp.iloc[0] if not gleif_authority_temp.empty else None
-    gleif_variables["authority_local_name"] = gleif_authority_local_name
-
-    # GLEIF Registration ID (RA Entity ID)
-    gleif_reg_ID = json_data["data"]["attributes"]["entity"]["registeredAs"]
-    gleif_variables["reg_ID"] = gleif_reg_ID
-
-
-    gleif_authority_pairs = []
-    gleif_authority_pairs.append({
-        "authority_ID": gleif_authority_ID,
-        "reg_ID": gleif_reg_ID
+    authority_pairs = []
+    
+    # Primary registration authority
+    primary_authority_ID = json_data["data"]["attributes"]["entity"]["registeredAt"]["id"]
+    primary_reg_ID = json_data["data"]["attributes"]["entity"]["registeredAs"]
+    authority_pairs.append({
+        "authority_ID": primary_authority_ID,
+        "reg_ID": primary_reg_ID
     })
-
-    # to keep the formatting standardized, try to do it without these getters in the future.
+    
+    # Other validation authorities
     other_validation_authorities = json_data.get("data", {}).get("attributes", {}).get("registration", {}).get("otherValidationAuthorities", [])
     if other_validation_authorities:
         for other_auth in other_validation_authorities:
             other_authority_ID = other_auth.get("validatedAt", {}).get("id")
             other_reg_ID = other_auth.get("validatedAs")
             if other_authority_ID and other_reg_ID:
-                gleif_authority_pairs.append({
+                authority_pairs.append({
                     "authority_ID": other_authority_ID,
                     "reg_ID": other_reg_ID
                 })
-
-    gleif_variables["authority_pairs"] = gleif_authority_pairs
-
     
+    return authority_pairs
 
-        
 
-    # GLEIF Legal Name
-    gleif_legal_name = json_data["data"]["attributes"]["entity"]["legalName"]["name"]
-    gleif_variables["legal_name"] = gleif_legal_name
-
-    # GLEIF Address
+def _fetch_gleif_via_api(lei: str) -> dict | None:
+    """
+    Fetches GLEIF data via API call and extracts all fields from JSON response.
+    Returns complete gleif_variables dict if successful, None if API call fails.
+    """
+    url = f"{url_stem}{lei}"
+    page = requests.get(url)
+    
+    if page.status_code != 200:
+        return None
+    
+    json_data = page.json()
+    gleif_variables = {}
+    
+    # Extract date
+    DEFAULT_DATE = datetime(1, 1, 1)
+    gleif_date = json_data["data"]["attributes"]["entity"]["creationDate"]
+    gleif_variables["date"] = (
+        DEFAULT_DATE if gleif_date is None 
+        else datetime.fromisoformat(gleif_date).replace(tzinfo=None)
+    )
+    
+    # Extract authority ID and local name
+    gleif_authority_ID = json_data["data"]["attributes"]["entity"]["registeredAt"]["id"]
+    gleif_variables["authority_ID"] = gleif_authority_ID
+    
+    gleif_authority_temp = df_gleif_authority.loc[
+        df_gleif_authority["Registration Authority Code"] == gleif_authority_ID, 
+        "Local name of organisation responsible for the Register"
+    ]
+    gleif_authority_local_name = gleif_authority_temp.iloc[0] if not gleif_authority_temp.empty else None
+    gleif_variables["authority_local_name"] = gleif_authority_local_name
+    
+    # Extract registration ID and build authority pairs
+    gleif_reg_ID = json_data["data"]["attributes"]["entity"]["registeredAs"]
+    gleif_variables["reg_ID"] = gleif_reg_ID
+    gleif_variables["authority_pairs"] = _build_authority_pairs_from_json(json_data)
+    
+    # Extract legal name
+    gleif_variables["legal_name"] = json_data["data"]["attributes"]["entity"]["legalName"]["name"]
+    
+    # Extract address and zipcode
     gleif_address_dict = json_data["data"]["attributes"]["entity"]["legalAddress"]
-    gleif_address = concat_address_fields(gleif_address_dict)
-    gleif_variables["address"] = gleif_address
-
-    # GLEIF Zipcode (Postal Code)
-    gleif_zipcode = json_data["data"]["attributes"]["entity"]["legalAddress"]["postalCode"]
-    gleif_variables["zipcode"] = gleif_zipcode
-
-    # GLEIF Jurisdiction (Country)
-    gleif_jurisdiction = json_data["data"]["attributes"]["entity"]["jurisdiction"]
-    gleif_variables["jurisdiction"] = gleif_jurisdiction
-
-    # GLEIF Legal Form
-    gleif_legal_form_ID = json_data["data"]["attributes"]["entity"]["legalForm"]["id"]
-    gleif_legal_form_temp = df_legal_form.loc[df_legal_form["ELF Code"] == gleif_legal_form_ID, "Entity Legal Form name Local name"]
-    gleif_legal_form = gleif_legal_form_temp.iloc[0] if not gleif_legal_form_temp.empty else None
-    legal_form_short_series = df_legal_form.loc[df_legal_form["ELF Code"] == gleif_legal_form_ID, "Abbreviations Local language"]
-    gleif_legal_form_short = legal_form_short_series.iloc[0] if not legal_form_short_series.empty else None
-    gleif_legal_form_other = json_data["data"]["attributes"]["entity"]["legalForm"]["other"]
+    gleif_variables["address"] = concat_address_fields(gleif_address_dict)
+    gleif_variables["zipcode"] = json_data["data"]["attributes"]["entity"]["legalAddress"]["postalCode"]
     
-    gleif_variables["legal_form"] = gleif_legal_form
-    gleif_variables["legal_form_short"] = gleif_legal_form_short
-    gleif_variables["legal_form_other"] = gleif_legal_form_other
-
+    # Extract jurisdiction
+    gleif_variables["jurisdiction"] = json_data["data"]["attributes"]["entity"]["jurisdiction"]
+    
+    # Extract legal form (main, short, and other)
+    gleif_legal_form_ID = json_data["data"]["attributes"]["entity"]["legalForm"]["id"]
+    
+    gleif_legal_form_temp = df_legal_form.loc[
+        df_legal_form["ELF Code"] == gleif_legal_form_ID, 
+        "Entity Legal Form name Local name"
+    ]
+    gleif_variables["legal_form"] = gleif_legal_form_temp.iloc[0] if not gleif_legal_form_temp.empty else None
+    
+    legal_form_short_series = df_legal_form.loc[
+        df_legal_form["ELF Code"] == gleif_legal_form_ID, 
+        "Abbreviations Local language"
+    ]
+    gleif_variables["legal_form_short"] = legal_form_short_series.iloc[0] if not legal_form_short_series.empty else None
+    gleif_variables["legal_form_other"] = json_data["data"]["attributes"]["entity"]["legalForm"]["other"]
+    
     return gleif_variables
 
 
-def extract_zipcode(address: str, jurisdiction_iso: str) -> str:
+def _fetch_gleif_via_regex(lei: str) -> dict | None:
+    """
+    Attempts to extract GLEIF data from regex results when API call fails.
+    Returns partial gleif_variables dict with available fields, or None if no sufficient data found.
+    """
+    results_duplicates_regex = st.session_state.results_duplicates_regex
+    
+    # Find matching LEI in regex results
+    extracted_data = None
+    for result in results_duplicates_regex:
+        if result.get("lei") == lei:
+            extracted_data = result
+            break
+    
+    # No data found in regex results, or insufficient information
+    if extracted_data is None or extracted_data.get("insufficient_regex_info"):
+        return None
+    
+    # Populate gleif_variables with regex-extracted data
+    gleif_variables = {}
+    gleif_variables["legal_name"] = extracted_data.get("company_name")
+    gleif_variables["zipcode"] = extracted_data.get("zip_code")
+    gleif_variables["reg_ID"] = extracted_data.get("registration_id")
+    gleif_variables["authority_ID"] = extracted_data.get("authority_id")
+    
+    # Build authority_pairs from registration data
+    authority_pairs = []
+    if extracted_data.get("registration_id") and extracted_data.get("authority_id"):
+        authority_pairs.append({
+            "authority_ID": extracted_data.get("authority_id"),
+            "reg_ID": extracted_data.get("registration_id")
+        })
+    if extracted_data.get("other_registration_pairs"):
+        for pair in extracted_data.get("other_registration_pairs"):
+            authority_pairs.append({
+                "authority_ID": pair.get("authority_id"),
+                "reg_ID": pair.get("registration_id")
+            })
+    gleif_variables["authority_pairs"] = authority_pairs if authority_pairs else []
+    
+    # Set remaining fields to None (not available from regex)
+    gleif_variables["date"] = None
+    gleif_variables["authority_local_name"] = None
+    gleif_variables["address"] = None
+    gleif_variables["jurisdiction"] = None
+    gleif_variables["legal_form"] = None
+    gleif_variables["legal_form_short"] = None
+    gleif_variables["legal_form_other"] = None
+    
+    return gleif_variables
+
+
+def _handle_lei_skip(lei: str, status: str, error_code: int) -> None:
+    """
+    Logs a skipped LEI to session state and displays appropriate warning message.
+    """
+    st.session_state.was_a_lei_skipped = True
+    st.session_state.skipped_leis.append({
+        "lei": lei,
+        "status": status,
+        "error_code": error_code
+    })
+    
+    if error_code == 404:
+        st.warning(f"Skipping {lei} — {status}")
+    else:
+        print(f"\n\n ********** Error searching for LEI {lei} — status {error_code} ********** \n\n")
+        st.warning(f"Skipping LEI {lei} — LEI not found ({error_code}) \n\n")
+
+
+def fetch_gleif_vars(lei: str) -> dict | None:
+    """
+    Called by the "Process Duplicates" button (through the fetch_all_gleif_vars function).
+    
+    Retrieves all relevant information from GLEIF API for a given LEI.
+    Falls back to regex extraction if API call fails.
+    
+    :param lei: LEI code to be checked (20-character alphanumeric string)
+    :return: gleif_variables dict with extracted fields, or None if LEI is skipped
+    """
+    lei_status_pairs = st.session_state.lei_status_pairs
+    status = lei_status_pairs.get(lei)
+    
+    print(f"LEI: {status}")  # Debug print for LEI status
+    
+    # Try API first
+    gleif_variables = _fetch_gleif_via_api(lei)
+    if gleif_variables is not None:
+        return gleif_variables
+    
+    # API failed, try regex fallback
+    gleif_variables = _fetch_gleif_via_regex(lei)
+    if gleif_variables is not None:
+        return gleif_variables
+    
+    # Both API and regex failed
+    page = requests.get(f"{url_stem}{lei}")
+    _handle_lei_skip(lei, status, page.status_code)
+    return None
+
+
+# === UTILITY FUNCTIONS ===
+
+def extract_zipcode(address: str, jurisdiction_iso: str) -> str | None:
     '''
     Called by the "Process LEI Manager" button (through the extract_lei_manager_vars function).
     
@@ -522,7 +543,9 @@ def fetch_all_gleif_vars():
     status_text.empty()
     
 
-def advanced_duplicates_text_regex(duplicates_text):
+# === REGEX EXTRACTION ===
+
+def advanced_duplicates_text_regex(duplicates_text: str) -> list:
     """
     Called by the "Process Duplicates" button.
     
@@ -601,7 +624,9 @@ def advanced_duplicates_text_regex(duplicates_text):
     return results
 
 
-def extract_lei_manager_vars(text_lei_manager, debug=False):
+# === LEI MANAGER EXTRACTION ===
+
+def extract_lei_manager_vars(text_lei_manager: str, debug: bool = False) -> dict:
 
     """
     Called by the "Process LEI Manager" button.
@@ -726,7 +751,10 @@ def extract_lei_manager_vars(text_lei_manager, debug=False):
 
     return manager_vars
 
-def authority_ID_check(gleif_authority_ID, manager_authority_ID):
+
+# === AUTHORITY MATCHING ===
+
+def authority_ID_check(gleif_authority_ID: str, manager_authority_ID: str) -> float:
     """
     Called by the "Check Duplicates" button (through the find_best_authority_match function).
     """
@@ -739,7 +767,7 @@ def authority_ID_check(gleif_authority_ID, manager_authority_ID):
         return 0
     return 0  # Fallback: return 0 if score is None or any other case
     
-def find_best_authority_match(gleif_authority_pairs, manager_authority_pairs, manager_jurisdiction):
+def find_best_authority_match(gleif_authority_pairs: list, manager_authority_pairs: list, manager_jurisdiction: str | None) -> tuple:
     """
     Called by the "Check Duplicates" button (through the generate_results function).
     """
@@ -771,23 +799,99 @@ def find_best_authority_match(gleif_authority_pairs, manager_authority_pairs, ma
     return best_gleif_pair, best_manager_pair, best_authority_score, best_reg_ID_score
 
 
+# === SCORE CALCULATION HELPERS ===
+
+def _calculate_legal_name_score(gleif_name: str | None, manager_name: str | None) -> float | None:
+    """Calculates fuzzy match score for legal names."""
+    if not gleif_name or not manager_name:
+        return None
+    return fuzz.ratio(str(gleif_name).lower(), str(manager_name).lower())
 
 
-def generate_results():
+def _calculate_address_score(gleif_addr: str | None, manager_addr: str | None) -> float | None:
+    """
+    Calculates address match score using both partial_ratio and token_set_ratio,
+    returning the maximum of the two.
+    """
+    if not gleif_addr or not manager_addr:
+        return None
+    
+    gleif_lower = str(gleif_addr).lower()
+    manager_lower = str(manager_addr).lower()
+    
+    partial = fuzz.partial_ratio(gleif_lower, manager_lower)
+    token_set = fuzz.token_set_ratio(gleif_lower, manager_lower)
+    
+    return max(partial, token_set)
+
+
+def _calculate_date_score(gleif_date, manager_date) -> int | None:
+    """Calculates date match score as absolute difference in days."""
+    if not gleif_date or not manager_date:
+        return None
+    return abs((gleif_date.date() - manager_date).days)
+
+
+def _calculate_legal_form_score(gleif_legal_form: str | None, gleif_legal_form_short: str | None, 
+                               gleif_legal_form_other: str | None, manager_form: str | None) -> float | None:
+    """
+    Calculates legal form match score by comparing manager form against
+    all three gleif legal form variants, returning the maximum score.
+    """
+    if not manager_form:
+        return None
+    
+    manager_lower = str(manager_form).lower().strip()
+    scores = []
+    
+    if gleif_legal_form:
+        scores.append(fuzz.partial_ratio(str(gleif_legal_form).lower(), manager_lower))
+    if gleif_legal_form_short:
+        scores.append(fuzz.partial_ratio(str(gleif_legal_form_short).lower(), manager_lower))
+    if gleif_legal_form_other:
+        scores.append(fuzz.partial_ratio(str(gleif_legal_form_other).lower(), manager_lower))
+    
+    return max(scores) if scores else None
+
+
+def _calculate_zipcode_score(gleif_zip: str | None, manager_zip: str | None) -> float | None:
+    """Calculates zipcode match score."""
+    if not gleif_zip or not manager_zip:
+        return None
+    return fuzz.ratio(str(gleif_zip), str(manager_zip))
+
+
+def _apply_special_authority_handlers(authority_id: str, gleif_reg_id: str | None, 
+                                     manager_reg_id: str | None, current_score: float | None) -> float | None:
+    """
+    Applies special handling rules for specific authorities (e.g., India GST/PAN).
+    Returns modified score if authority has a handler, otherwise returns original score.
+    """
+    if authority_id not in AUTHORITY_HANDLERS:
+        return current_score
+    
+    handler_func = AUTHORITY_HANDLERS[authority_id]
+    return handler_func(gleif_reg_id, manager_reg_id, current_score)
+
+
+# === RESULTS & CLASSIFICATION ===
+
+def generate_results() -> list:
     """
     Called by the "Check Duplicates" button.
+    
+    Compares all gleif duplicates against manager variables and generates
+    similarity scores for each field. Returns list of result dicts with scores.
     """
     st.session_state.all_results = []
-    
     all_results = []
     manager_vars = st.session_state.manager_vars
     all_gleif_duplicates = st.session_state.all_gleif_duplicates
 
     for duplicate in all_gleif_duplicates:
-
         gleif_variables = duplicate
         
-        # Beginning of Authority and Registration ID
+        # Find best authority match across all authority pairs
         gleif_authority_pairs = gleif_variables.get("authority_pairs", [])
         manager_authority_pairs = manager_vars.get("authority_pairs", [])
 
@@ -797,34 +901,50 @@ def generate_results():
             manager_vars.get("jurisdiction")
         )
 
+        # Update manager and gleif variables with best matching pair
         manager_vars["authority_ID"] = best_manager_pair["authority_ID"] if best_manager_pair else manager_vars["authority_ID"]
         manager_vars["reg_ID"] = best_manager_pair["reg_ID"] if best_manager_pair else manager_vars["reg_ID"]
         gleif_variables["authority_ID"] = best_gleif_pair["authority_ID"] if best_gleif_pair else gleif_variables["authority_ID"]
-        gleif_variables["reg_ID"] = best_gleif_pair["reg_ID"] if best_gleif_pair else gleif_variables["reg_ID"]     
-
-        # Im not sure this makes sense here. Maybe this check should be done before, like inside find_best_authority_match.
-        if manager_vars["authority_ID"] in AUTHORITY_HANDLERS:
-            function = AUTHORITY_HANDLERS[manager_vars["authority_ID"]]
-            reg_ID_score = function(gleif_variables["reg_ID"], manager_vars["reg_ID"], reg_ID_score)
-
-        # End of Authority and Registration ID
-
-        legal_name_score = fuzz.ratio(str(gleif_variables["legal_name"]).lower(), str(manager_vars["legal_name"]).lower()) if gleif_variables.get("legal_name") and manager_vars.get("legal_name") else None
+        gleif_variables["reg_ID"] = best_gleif_pair["reg_ID"] if best_gleif_pair else gleif_variables["reg_ID"]
         
-        address_score_partial = fuzz.partial_ratio(str(gleif_variables["address"]).lower(), str(manager_vars["address"]).lower()) if gleif_variables.get("address") and manager_vars.get("address") else None
-        address_score_token_set = fuzz.token_set_ratio(str(gleif_variables["address"]).lower(), str(manager_vars["address"]).lower()) if gleif_variables.get("address") and manager_vars.get("address") else None
-        address_score = max(address_score_partial, address_score_token_set) if address_score_partial is not None and address_score_token_set is not None else address_score_partial or address_score_token_set
+        # Apply special authority handlers (e.g., India GST/PAN)
+        if manager_vars["authority_ID"]:
+            reg_ID_score = _apply_special_authority_handlers(
+                manager_vars["authority_ID"],
+                gleif_variables.get("reg_ID"),
+                manager_vars.get("reg_ID"),
+                reg_ID_score
+            )
+
+        # Calculate all field scores
+        legal_name_score = _calculate_legal_name_score(
+            gleif_variables.get("legal_name"),
+            manager_vars.get("legal_name")
+        )
         
-        date_score = abs((gleif_variables["date"].date() - manager_vars["date"]).days) if gleif_variables.get("date") and manager_vars.get("date") else None
+        address_score = _calculate_address_score(
+            gleif_variables.get("address"),
+            manager_vars.get("address")
+        )
+        
+        date_score = _calculate_date_score(
+            gleif_variables.get("date"),
+            manager_vars.get("date")
+        )
+        
+        legal_form_score = _calculate_legal_form_score(
+            gleif_variables.get("legal_form"),
+            gleif_variables.get("legal_form_short"),
+            gleif_variables.get("legal_form_other"),
+            manager_vars.get("legal_form")
+        )
+        
+        zipcode_score = _calculate_zipcode_score(
+            gleif_variables.get("zipcode"),
+            manager_vars.get("zipcode")
+        )
 
-        legal_form_score_main = fuzz.partial_ratio(str(gleif_variables["legal_form"]).lower(), str(manager_vars["legal_form"]).lower().strip())
-        legal_form_short_score = fuzz.partial_ratio(str(gleif_variables["legal_form_short"]).lower(), str(manager_vars["legal_form"]).lower().strip())
-        legal_form_other_score = fuzz.partial_ratio(str(gleif_variables["legal_form_other"]).lower(), str(manager_vars["legal_form"]).lower().strip())
-        legal_form_score = max(legal_form_score_main, legal_form_short_score, legal_form_other_score) if legal_form_score_main is not None and legal_form_short_score is not None and legal_form_other_score is not None else legal_form_score_main or legal_form_short_score or legal_form_other_score
-
-        zipcode_score = fuzz.ratio(str(gleif_variables["zipcode"]), str(manager_vars["zipcode"])) if gleif_variables.get("zipcode") and manager_vars.get("zipcode") else None
-
-
+        # Compile results
         results = {
             "Legal Name": legal_name_score,
             "Authority ID": authority_ID_score,
@@ -841,14 +961,16 @@ def generate_results():
     return all_results
 
 
-def is_streamlit_running():
+# === UI & DISPLAY ===
+
+def is_streamlit_running() -> bool:
     try:
         return get_script_run_ctx() is not None
     except:
         return False
 
 
-def get_feature_row_color(feature, value):
+def get_feature_row_color(feature: str, value: float | None) -> str:
     """
     Called by the "Check Duplicates" button (through the build_comparison_table function).
     """
@@ -906,7 +1028,7 @@ def get_feature_row_color(feature, value):
             return "background-color: #c6efce"
 
 
-def build_comparison_table(results, gleif_vars, manager_vars):
+def build_comparison_table(results: dict, gleif_vars: dict, manager_vars: dict):
     """
     Called by the "Check Duplicates" button.
     """
@@ -954,7 +1076,7 @@ def build_comparison_table(results, gleif_vars, manager_vars):
 
     return styled_df
 
-def plot_scores(scores_list, title="Feature Similarity Scores"):
+def plot_scores(scores_list: dict | list, title: str = "Feature Similarity Scores") -> None:
 
     if isinstance(scores_list, dict):
         scores_list = list(scores_list.items())
@@ -1020,7 +1142,9 @@ def plot_scores(scores_list, title="Feature Similarity Scores"):
         plt.show()
 
 
-def classify_candidate_emoji_color(results):
+# === CHECK DUPLICATES LOGIC ===
+
+def classify_candidate_emoji_color(results: dict) -> str:
     """
     Called by the "Check Duplicates" button.
     
@@ -1071,6 +1195,242 @@ def classify_candidate_emoji_color(results):
     # =========================
     return "GREEN"
 
+
+# === CHECK DUPLICATES BUTTON HELPERS ===
+
+def _classify_all_results(all_results: list) -> dict:
+    """
+    Classifies all results by iterating through and categorizing each.
+    Returns dict with: red_leis, yellow_leis, authority_mismatch, mismatched_leis.
+    """
+    classification = {
+        "red_leis": [],
+        "yellow_leis": [],
+        "has_authority_mismatch": False,
+        "mismatched_leis": [],
+        "status_log": []
+    }
+    
+    processed_leis = st.session_state.processed_leis
+    
+    for i, results in enumerate(all_results):
+        authority_id_score = results.get("Authority ID")
+        
+        # Check for authority mismatch
+        if authority_id_score == 0:
+            classification["has_authority_mismatch"] = True
+            classification["mismatched_leis"].append(processed_leis[i])
+        
+        # Classify status
+        status = classify_candidate_emoji_color(results)
+        classification["status_log"].append(status)
+        
+        if status == "RED":
+            classification["red_leis"].append(processed_leis[i])
+        elif status == "YELLOW" or status == "UNKNOWN":
+            classification["yellow_leis"].append(processed_leis[i])
+    
+    return classification
+
+
+def _build_status_messages(classification: dict, was_a_lei_skipped: bool) -> dict:
+    """
+    Builds all status messages based on classification results.
+    Returns dict with message keys: error_msg, yellow_msg, skipped_msg, authority_msg, success_msg (all optional/None).
+    """
+    messages = {
+        "error_msg": None,
+        "yellow_msg": None,
+        "skipped_msg": None,
+        "authority_msg": None,
+        "success_msg": None
+    }
+    
+    # RED duplicates alert
+    if classification["red_leis"]:
+        error_msg = "🔴 **DUPLICATE ALERT:** The following LEIs are flagged as likely duplicates:\n\n"
+        for lei in classification["red_leis"]:
+            error_msg += f"- {lei}\n"
+        messages["error_msg"] = error_msg
+    
+    # YELLOW possible duplicates
+    if classification["yellow_leis"]:
+        warning_msg = "🟡 **Possible duplicates found.** The following candidates require review:\n\n"
+        for lei in classification["yellow_leis"]:
+            warning_msg += f"- {lei}\n"
+        warning_msg += "\nPlease review the details below before approving the order."
+        messages["yellow_msg"] = warning_msg
+    
+    # Skipped LEIs
+    if was_a_lei_skipped:
+        warning_msg = "⚠️ The following LEIs could not be fetched and **must be reviewed manually:** \n\n"
+        for skipped_lei_info in st.session_state.skipped_leis:
+            lei = skipped_lei_info["lei"]
+            status = skipped_lei_info["status"]
+            error_code = skipped_lei_info["error_code"]
+            
+            if status == "PENDING_VALIDATION":
+                warning_msg += f"- {lei} — {status}\n"
+            else:
+                warning_msg += f"- {lei} ({error_code})\n"
+        messages["skipped_msg"] = warning_msg
+    
+    # Authority mismatch warning
+    if classification["has_authority_mismatch"]:
+        warning_msg = "⚠️ The following candidates have a **different Registration Authority ID.** These should be checked individually:\n\n"
+        for lei in classification["mismatched_leis"]:
+            warning_msg += f"- {lei}\n"
+        messages["authority_msg"] = warning_msg
+    
+    # Success message (only if nothing else)
+    if (not classification["red_leis"] and not classification["yellow_leis"] 
+        and not classification["has_authority_mismatch"] and not was_a_lei_skipped):
+        messages["success_msg"] = "No duplicates found! You may aprove the order. See below for more details."
+    
+    return messages
+
+
+def _display_status_messages(messages: dict) -> None:
+    """Displays all status messages using appropriate Streamlit functions."""
+    if messages["error_msg"]:
+        st.error(messages["error_msg"])
+    
+    if messages["yellow_msg"]:
+        st.warning(messages["yellow_msg"])
+    
+    if messages["skipped_msg"]:
+        st.warning(messages["skipped_msg"])
+    
+    if messages["authority_msg"]:
+        st.warning(messages["authority_msg"])
+    
+    if messages["success_msg"]:
+        st.success(messages["success_msg"])
+
+
+def _display_candidate_details(classification: dict) -> None:
+    """
+    Displays detailed comparison for each candidate in expandable sections.
+    Uses status_log to determine emoji and authority warning.
+    """
+    processed_leis = st.session_state.processed_leis
+    all_results = st.session_state.all_results
+    all_gleif_duplicates = st.session_state.all_gleif_duplicates
+    status_log = classification["status_log"]
+    
+    emoji_map = {
+        "GREEN": "🟢",
+        "YELLOW": "🟡",
+        "RED": "🔴",
+        "UNKNOWN": "🟡"
+    }
+    
+    for i, results in enumerate(all_results):
+        status = status_log[i]
+        emoji = emoji_map[status]
+        
+        gleif_vars = all_gleif_duplicates[i]
+        lei_code = processed_leis[i]
+        
+        # Check if Authority ID is 0 (different)
+        authority_warning = " ⚠️ DIFFERENT AUTHORITY" if results.get("Authority ID") == 0 else ""
+
+        with st.expander(f"{emoji} Duplicate candidate: {lei_code}{authority_warning}"):
+            styled_table = build_comparison_table(
+                results,
+                gleif_vars,
+                st.session_state.manager_vars
+            )
+            st.dataframe(styled_table)
+
+
+# === PROCESS DUPLICATES BUTTON HELPERS ===
+
+def _extract_leis_from_duplicates_text(duplicates_text: str) -> list:
+    """
+    Extracts all LEIs from duplicates text using regex pattern.
+    Removes duplicates while preserving order.
+    """
+    extracted_leis = re.findall(pattern, duplicates_text, flags=re.MULTILINE)
+    # Remove duplicates while preserving order
+    return list(dict.fromkeys(extracted_leis))
+
+
+def _extract_lei_status_pairs(duplicates_text: str) -> dict:
+    """
+    Extracts LEI-Status pairs (ISSUED, PENDING_VALIDATION, LAPSED) from duplicates text.
+    """
+    matches = re.findall(pattern_lei_status, duplicates_text, re.DOTALL)
+    return {lei: status for lei, status in matches}
+
+
+def _check_and_warn_missing_leis(duplicates_text: str, extracted_leis: list) -> None:
+    """
+    Checks if duplicate count in message exceeds extracted LEIs.
+    Displays warning if LEIs are missing.
+    """
+    duplicate_count_match = re.search(pattern_duplicate_count, duplicates_text)
+    if not duplicate_count_match:
+        return
+    
+    total_duplicates = int(duplicate_count_match.group(1))
+    # Count LEIs found including duplicates (before deduplication)
+    all_leis_matches = re.findall(pattern, duplicates_text, flags=re.MULTILINE)
+    found_leis_count = len(all_leis_matches)
+    
+    if total_duplicates > found_leis_count:
+        missing_leis_count = total_duplicates - found_leis_count
+        st.session_state.missing_leis_count = missing_leis_count
+        st.warning(
+            f"**{missing_leis_count} LEI(s)** mentioned in the duplicate count were not found in the extracted list. "
+            f"This may be due to formatting issues in the message. **Make sure to check the remaining LEI(s) as well.**"
+        )
+    else:
+        st.session_state.missing_leis_count = None
+
+
+def _display_found_leis(duplicate_leis: list, lei_status_pairs: dict) -> None:
+    """
+    Displays all found LEIs with their status (ISSUED, PENDING_VALIDATION, LAPSED).
+    """
+    st.success(f"{len(duplicate_leis)} LEI(s) found:")
+    for lei in duplicate_leis:
+        status = lei_status_pairs.get(lei)
+        if status and status != "ISSUED":
+            st.write(f"{lei} - {status}")
+        else:
+            st.write(lei)
+
+
+def _process_duplicates_text(duplicates_text: str) -> None:
+    """
+    Main orchestrator for processing duplicates text.
+    Validates input, extracts data, displays results, and fetches GLEIF data.
+    """
+    if not duplicates_text.strip():
+        st.warning("Please paste some text first.")
+        return
+    
+    # Extract and process duplicates
+    advanced_duplicates_text_regex(duplicates_text)
+    extracted_leis = _extract_leis_from_duplicates_text(duplicates_text)
+    lei_status_pairs = _extract_lei_status_pairs(duplicates_text)
+    
+    # Store in session state
+    st.session_state.duplicate_leis = extracted_leis
+    st.session_state.lei_status_pairs = lei_status_pairs
+    
+    # Check for missing LEIs and warn if needed
+    _check_and_warn_missing_leis(duplicates_text, extracted_leis)
+    
+    # Display results or error
+    if st.session_state.duplicate_leis:
+        _display_found_leis(st.session_state.duplicate_leis, lei_status_pairs)
+        fetch_all_gleif_vars()
+    else:
+        st.warning("No LEI-Number found (duplicates)")
+
+
 # Buttons and TextAreas
 
 if st.button("Reset Variables"):
@@ -1087,58 +1447,7 @@ duplicates_text = st.text_area(
 )
 
 if st.button("Process duplicates", use_container_width=True):
-
-    # st.session_state.clear() # duvida: isso vai apagar o duplicates_text?
-
-    # Regex to extract all LEIs.
-    if duplicates_text.strip():
-        # Send duplicates text to advanced regex processing function
-        advanced_duplicates_text_regex(duplicates_text)
-        
-        extracted_leis = re.findall(
-            pattern,
-            duplicates_text,
-            flags=re.MULTILINE
-        )
-        # Remove duplicate LEIs while preserving order. Very good to have this.
-        # Also saved the duplicate LEIs in session state.
-        st.session_state.duplicate_leis = list(dict.fromkeys(extracted_leis))
-
-        # Separate Regex for extracting LEI-Status pairs.
-        matches = re.findall(pattern_lei_status, duplicates_text, re.DOTALL)
-        lei_status_pairs = {lei: status for lei, status in matches}
-        st.session_state.lei_status_pairs = lei_status_pairs
-
-        # Extract the total duplicate count from the message and compare
-        duplicate_count_match = re.search(pattern_duplicate_count, duplicates_text)
-        if duplicate_count_match:
-            total_duplicates = int(duplicate_count_match.group(1)) # total_duplicates example: "12 duplicate(s) found. Order locked."
-            found_leis_count = len(extracted_leis) # Important to use extracted_leis here instead of duplicate_leis, bacause the total_duplicates counts the same lei twice if it appears in the notes.
-            if total_duplicates > found_leis_count:
-                missing_leis_count = total_duplicates - found_leis_count
-                st.session_state.missing_leis_count = missing_leis_count
-                st.warning(f"**{missing_leis_count} LEI(s)** mentioned in the duplicate count were not found in the extracted list. This may be due to formatting issues in the message. **Make sure to check the remaining LEI(s) as well.**")
-            else:
-                st.session_state.missing_leis_count = None
-
-        if st.session_state.duplicate_leis:
-            st.success(f"{len(st.session_state.duplicate_leis)} LEI(s) found:") # Correct. If the same LEI appears twice, it will only count as one.
-            for lei in st.session_state.duplicate_leis:
-                status = lei_status_pairs.get(lei)
-                if status and status != "ISSUED":
-                    st.write(f"{lei} - {status}")
-                else:
-                    st.write(lei)
-
-            # Here we have the spinner, which shows an animated loading circle icon.
-
-            # with st.spinner("Fetching GLEIF data for all LEIs..."):
-                # fetch_all_gleif_vars()
-            fetch_all_gleif_vars()
-        else:
-            st.warning("No LEI-Number found (duplicates)")
-    else:
-        st.warning("Please paste some text first.")
+    _process_duplicates_text(duplicates_text)
 
 
 st.subheader("LEI Manager Data")
@@ -1167,115 +1476,27 @@ if st.button("Process LEI Manager", use_container_width=True):
 
 
 if st.button("Check Duplicates", use_container_width=True):
-
+    # Orchestrates the full duplicate checking workflow:
+    # 1. Generate comparison results
+    # 2. Classify all results
+    # 3. Build and display status messages
+    # 4. Display detailed candidate comparisons
+    
     st.write("Initializing duplicate check...")
+    
+    # Generate results and classify
     all_results = generate_results()
-    status_log = []
-    findings = "No duplicates found! You may aprove the order. See below for more details."
-    is_there_a_duplicate = False
-    there_is_at_least_one_authority_mismatch = False
-    has_yellow = False
-    processed_leis = st.session_state.processed_leis
-    all_gleif_duplicates = st.session_state.all_gleif_duplicates
+    classification = _classify_all_results(all_results)
     was_a_lei_skipped = st.session_state.was_a_lei_skipped
     
-    # Clear tracking lists for this check
-    st.session_state.red_labeled_duplicates = []
-    st.session_state.yellow_labeled_duplicates = []
-    st.session_state.different_authority_candidates = []
-
-    # Check duplicates and authority mismatches in a single pass
-    for i, results in enumerate(all_results):
-        # Check authority ID
-        authority_id_score = results.get("Authority ID")
-        
-        if authority_id_score == 0:
-            there_is_at_least_one_authority_mismatch = True
-            st.session_state.different_authority_candidates.append(processed_leis[i])
-        
-        # Classify duplicate
-        status = classify_candidate_emoji_color(results)
-        status_log.append(status)
-        
-        if status == "RED":
-            is_there_a_duplicate = True
-            st.session_state.red_labeled_duplicates.append(processed_leis[i])
-        elif status == "YELLOW" or status == "UNKNOWN":
-            has_yellow = True
-            st.session_state.yellow_labeled_duplicates.append(processed_leis[i])
-
-
-    # Show appropriate final status
-    if is_there_a_duplicate:
-        error_msg = "🔴 **DUPLICATE ALERT:** The following LEIs are flagged as likely duplicates:\n\n"
-        for lei in st.session_state.red_labeled_duplicates:
-            error_msg += f"- {lei}\n"
-        st.error(error_msg)
+    # Store session state for display
+    st.session_state.red_labeled_duplicates = classification["red_leis"]
+    st.session_state.yellow_labeled_duplicates = classification["yellow_leis"]
+    st.session_state.different_authority_candidates = classification["mismatched_leis"]
     
-    if has_yellow:
-        warning_msg = "🟡 **Possible duplicates found.** The following candidates require review:\n\n"
-        for lei in st.session_state.yellow_labeled_duplicates:
-            warning_msg += f"- {lei}\n"
-        warning_msg += "\nPlease review the details below before approving the order."
-        st.warning(warning_msg)
-
+    # Build and display messages
+    messages = _build_status_messages(classification, was_a_lei_skipped)
+    _display_status_messages(messages)
     
-    
-    if was_a_lei_skipped:
-        warning_msg = "⚠️ The following LEIs could not be fetched and **must be reviewed manually:** \n\n"
-        
-        for skipped_lei_info in st.session_state.skipped_leis:
-            lei = skipped_lei_info["lei"]
-            status = skipped_lei_info["status"]
-            error_code = skipped_lei_info["error_code"]
-            
-            if status == "PENDING_VALIDATION":
-                warning_msg += f"- {lei} — {status}\n"
-            else:
-                warning_msg += f"- {lei} ({error_code})\n"
-        
-        st.warning(warning_msg)
-
-    # Show single warning if any authority mismatches exist
-    if there_is_at_least_one_authority_mismatch:
-        warning_msg = "⚠️ The following candidates have a **different Registration Authority ID.** These should be checked individually:\n\n"
-        for lei in st.session_state.different_authority_candidates:
-            warning_msg += f"- {lei}\n"
-        st.warning(warning_msg)
-    
-    if not is_there_a_duplicate and not has_yellow and not (there_is_at_least_one_authority_mismatch or was_a_lei_skipped):
-        st.success("No duplicates found! You may aprove the order. See below for more details.")
-
-
-
-
-
-    # Display results for each candidate with appropriate emojis and warnings
-    processed_leis = st.session_state.processed_leis
-    for i, results in enumerate(all_results):
-        
-        status = status_log[i]
-        
-        emoji = {
-            "GREEN": "🟢",
-            "YELLOW": "🟡",
-            "RED": "🔴",
-            "UNKNOWN": "🟡" # removi o unknown. acontecia se legal_name ou address fossem None. Mas isso so costuma acontecer nos casos de pending validation. Nenhum pending validation que passar pelo advanced regex vai ter address, entao seriam todos amarelos. falei com o Korbi e era pra gente ignorar esses casos, ou seja, pode ser verde entao. logo, fez mais sentido so tirar essa opcao da funcao das cores das bolinhas la.
-        }[status]
-
-        
-        gleif_vars = all_gleif_duplicates[i]
-        lei_code = processed_leis[i]
-        
-        # Check if Authority ID is 0 (different)
-        authority_warning = " ⚠️ DIFFERENT AUTHORITY" if results.get("Authority ID") == 0 else ""
-
-        with st.expander(f"{emoji} Duplicate candidate: {lei_code}{authority_warning}"):
-
-            styled_table = build_comparison_table(
-                results,
-                gleif_vars,
-                st.session_state.manager_vars
-            )
-
-            st.dataframe(styled_table)
+    # Display detailed candidate information
+    _display_candidate_details(classification)
