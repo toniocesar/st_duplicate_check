@@ -1382,7 +1382,6 @@ def _extract_lei_status_pairs(duplicates_text: str) -> dict:
         
         lei_status_pairs[lei] = status
     
-    st.write(f"Extracted LEI-Status pairs: {lei_status_pairs}")  # Debug print
     return lei_status_pairs
 
 
