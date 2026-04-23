@@ -173,10 +173,12 @@ FEATURE_KEY_MAP = {
     "Legal Form": "legal_form"
 }
 
+# Note: currently, authority handlers are called AFTER the "best authority" has been selected
 AUTHORITY_HANDLERS = {
     "RA000754": handle_GST_PAN_reg_ID,
 }
 
+# Note: currently, jurisdiction handlers are called AFTER the "best authority" has been selected
 JURISDICTION_HANDLERS = {
     "DE": {
         "function": handle_no_authority_check,
