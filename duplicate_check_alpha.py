@@ -137,7 +137,6 @@ with st.sidebar:
 
 
 pattern = r'^[A-Z0-9]{20}$'
-pattern_lei_status = r'([A-Z0-9]{20})\n.+?\n.+?\n(ISSUED|PENDING_VALIDATION|LAPSED)'
 pattern_duplicate_count = r'(\d+)\s+duplicate\(s\)\s+found'
 url_stem = "https://api.gleif.org/api/v1/lei-records/"
 
@@ -1359,9 +1358,30 @@ def _extract_leis_from_duplicates_text(duplicates_text: str) -> list:
 def _extract_lei_status_pairs(duplicates_text: str) -> dict:
     """
     Extracts LEI-Status pairs (ISSUED, PENDING_VALIDATION, LAPSED) from duplicates text.
+    Uses a block-based approach to find statuses within their respective LEI blocks.
     """
-    matches = re.findall(pattern_lei_status, duplicates_text, re.DOTALL)
-    return {lei: status for lei, status in matches}
+    # Pattern to split into blocks - separated by double newlines
+    block_re = re.compile(
+        r'(?ms)^(?P<lei>[0-9A-Z]{20})\n(?P<rest>.*?)(?=\n{2,}[0-9A-Z]{20}\n|\Z)'
+    )
+    
+    # Pattern to find status within a block - must be on its own line
+    status_re = re.compile(r'(?m)^(ISSUED|PENDING_VALIDATION|LAPSED)$')
+    
+    lei_status_pairs = {}
+    
+    for m in block_re.finditer(duplicates_text):
+        lei = m.group("lei")
+        block = lei + "\n" + m.group("rest")
+        
+        # Search for status within this block only
+        status_match = status_re.search(block)
+        status = status_match.group(1) if status_match else None
+        
+        lei_status_pairs[lei] = status
+    
+    st.write(f"Extracted LEI-Status pairs: {lei_status_pairs}")  # Debug print
+    return lei_status_pairs
 
 
 def _check_and_warn_missing_leis(duplicates_text: str, extracted_leis: list) -> None:
