@@ -1278,7 +1278,7 @@ def _classify_all_results(all_results: list) -> dict:
     return classification
 
 
-def _build_status_messages(classification: dict, was_a_lei_skipped: bool) -> dict:
+def _build_status_messages(classification: dict) -> dict:
     """
     Builds all status messages based on classification results.
     Returns dict with message keys: error_msg, yellow_msg, skipped_msg, authority_msg, success_msg (all optional/None).
@@ -1306,7 +1306,7 @@ def _build_status_messages(classification: dict, was_a_lei_skipped: bool) -> dic
         messages["yellow_msg"] = warning_msg
     
     # Skipped LEIs
-    if was_a_lei_skipped:
+    if st.session_state.was_a_lei_skipped:
         warning_msg = ".⚠️ **Skipped LEIs.** The following LEIs could not be fetched and **must be reviewed manually:** \n\n"
         for skipped_lei_info in st.session_state.skipped_leis:
             lei = skipped_lei_info["lei"]
@@ -1336,6 +1336,7 @@ def _build_status_messages(classification: dict, was_a_lei_skipped: bool) -> dic
 
 def _display_status_messages(messages: dict) -> None:
     """Displays all status messages using appropriate Streamlit functions."""
+    
     if messages["error_msg"]:
         st.error(messages["error_msg"])
     
@@ -1593,7 +1594,6 @@ if st.button("Check Duplicates", use_container_width=True):
     # Generate results and classify
     all_results = generate_results()
     classification = _classify_all_results(all_results)
-    was_a_lei_skipped = st.session_state.was_a_lei_skipped
     
     # Store session state for display
     st.session_state.red_labeled_duplicates = classification["red_leis"]
@@ -1601,7 +1601,7 @@ if st.button("Check Duplicates", use_container_width=True):
     st.session_state.different_authority_candidates = classification["mismatched_leis"]
     
     # Build and display messages
-    messages = _build_status_messages(classification, was_a_lei_skipped)
+    messages = _build_status_messages(classification)
     _display_status_messages(messages)
     
     # Display detailed candidate information
