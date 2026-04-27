@@ -787,14 +787,14 @@ def find_best_authority_match(gleif_authority_pairs: list, manager_authority_pai
     best_manager_pair = manager_authority_pairs[0]
 
     best_authority_score = authority_ID_check(best_gleif_pair["authority_ID"], best_manager_pair["authority_ID"])
-    best_reg_ID_score = fuzz.ratio(str(best_gleif_pair["reg_ID"]).replace(" ", ""), str(best_manager_pair["reg_ID"]).replace(" ", "")) if best_gleif_pair.get("reg_ID") and best_manager_pair.get("reg_ID") else None
+    best_reg_ID_score = _calculate_reg_ID_score(best_gleif_pair.get("reg_ID"), best_manager_pair.get("reg_ID"))
 
     if best_authority_score != 100:
         for gleif_pair in gleif_authority_pairs:
             for manager_pair in manager_authority_pairs:
                 current_authority_score = authority_ID_check(gleif_pair["authority_ID"], manager_pair["authority_ID"])
                 if current_authority_score == 100:
-                    current_reg_ID_score = fuzz.ratio(str(gleif_pair["reg_ID"]).replace(" ", ""), str(manager_pair["reg_ID"]).replace(" ", "")) if gleif_pair.get("reg_ID") and manager_pair.get("reg_ID") else None
+                    current_reg_ID_score = _calculate_reg_ID_score(gleif_pair.get("reg_ID"), manager_pair.get("reg_ID"))
                     best_reg_ID_score = current_reg_ID_score
                     best_authority_score = current_authority_score
                     best_gleif_pair = gleif_pair
@@ -867,6 +867,43 @@ def _calculate_zipcode_score(gleif_zip: str | None, manager_zip: str | None) -> 
     if not gleif_zip or not manager_zip:
         return None
     return fuzz.ratio(str(gleif_zip), str(manager_zip))
+
+
+def _calculate_reg_ID_score(gleif_reg_id: str | None, manager_reg_id: str | None) -> float | None:
+    """
+    Calculates registration ID match score using multiple scoring methods
+    and returns the highest score.
+    
+    Methods used (in priority order):
+    1. Substring check (100 if one is contained in the other)
+    2. fuzz.ratio() - character-level similarity
+    3. fuzz.partial_ratio() - best matching substring
+    4. fuzz.token_set_ratio() - tokenized comparison
+    
+    Returns the maximum score from all methods.
+    """
+    if not gleif_reg_id or not manager_reg_id:
+        return None
+    
+    gleif_clean = str(gleif_reg_id).replace(" ", "")
+    manager_clean = str(manager_reg_id).replace(" ", "")
+    
+    scores = []
+    
+    # Method 1: Substring check (bidirectional)
+    if gleif_clean in manager_clean or manager_clean in gleif_clean:
+        scores.append(100)
+    
+    # Method 2: Standard fuzzy ratio
+    scores.append(fuzz.ratio(gleif_clean, manager_clean))
+    
+    # Method 3: Partial ratio (better for substrings)
+    scores.append(fuzz.partial_ratio(gleif_clean, manager_clean))
+    
+    # Method 4: Token set ratio (good for multi-part IDs)
+    scores.append(fuzz.token_set_ratio(gleif_clean, manager_clean))
+    
+    return max(scores)
 
 
 def _apply_special_authority_handlers(authority_id: str, gleif_reg_id: str | None, 
