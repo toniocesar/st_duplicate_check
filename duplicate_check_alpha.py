@@ -1591,7 +1591,7 @@ if st.button("Check Duplicates", use_container_width=True):
     
     st.write("Initializing duplicate check...")
     
-    # Generate results and classify
+    # Generate results (scores) and classify (🔴,🟡,🟢,⚠️)
     all_results = generate_results()
     classification = _classify_all_results(all_results)
     
