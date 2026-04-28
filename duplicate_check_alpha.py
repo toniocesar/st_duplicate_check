@@ -1328,7 +1328,7 @@ def _build_status_messages(classification: dict) -> dict:
     
     # Success message (only if nothing else)
     if (not classification["red_leis"] and not classification["yellow_leis"] 
-        and not classification["has_authority_mismatch"] and not was_a_lei_skipped):
+        and not classification["has_authority_mismatch"] and not st.session_state.was_a_lei_skipped):
         messages["success_msg"] = "🟢 No duplicates found! You may approve the order. See below for more details."
     
     return messages
