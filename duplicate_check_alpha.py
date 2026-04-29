@@ -200,6 +200,71 @@ SCORE_THRESHOLDS = {
     
 }
 
+# Maximum numeric difference between trailing numeric suffixes of two reg_IDs
+# for them to be considered "incremental" (batch-registered companies).
+INCREMENTAL_REG_ID_DIFF = 1
+
+def rule_incremental_reg_id(base_color: str, scores: dict, gleif_vars: dict, manager_vars: dict) -> str | None:
+    """
+    Override rule: downgrades RED → YELLOW for batch-registered companies
+    (e.g. India), where multiple similar companies share the same address and
+    creation date but have incrementally different reg_IDs and similar-but-not-identical names.
+
+    Fires when ALL of the following are true:
+    - base classification is RED
+    - legal name score is high but not identical
+      (>= Address RED threshold as a proxy, and < 100)
+    - address score is >= Address RED threshold
+    - creation date difference is <= Creation Date YELLOW threshold
+    - the trailing numeric suffixes of both reg_IDs differ by <= INCREMENTAL_REG_ID_DIFF
+    """
+    if base_color != "RED":
+        return None
+
+    legal_name = scores.get("Legal Name")
+    address    = scores.get("Address")
+    date       = scores.get("Creation Date")
+
+    name_threshold = SCORE_THRESHOLDS["Registration ID"]["RED"]
+
+    # Name must be similar but not identical
+    if legal_name is None or not (legal_name >= name_threshold and legal_name < 100):
+        return None
+
+    # Address must be highly similar
+    if address is None or address < SCORE_THRESHOLDS["Address"]["RED"]:
+        return None
+
+    # Dates must be close
+    if date is None or date > SCORE_THRESHOLDS["Creation Date"]["YELLOW"]:
+        return None
+
+    # reg_IDs must differ by at most INCREMENTAL_REG_ID_DIFF in their trailing numeric suffix
+    gleif_reg_id   = gleif_vars.get("reg_ID")   if gleif_vars   else None
+    manager_reg_id = manager_vars.get("reg_ID") if manager_vars else None
+
+    if not gleif_reg_id or not manager_reg_id:
+        return None
+
+    gleif_suffix   = re.search(r'\d+$', str(gleif_reg_id))
+    manager_suffix = re.search(r'\d+$', str(manager_reg_id))
+
+    if not gleif_suffix or not manager_suffix:
+        return None
+
+    if abs(int(gleif_suffix.group()) - int(manager_suffix.group())) <= INCREMENTAL_REG_ID_DIFF:
+        return "YELLOW"
+
+    return None
+
+
+# List of classification override rule functions.
+# Each callable has signature:
+#   (base_color: str, scores: dict, gleif_vars: dict, manager_vars: dict) -> str | None
+# Return a new color string to override, or None to leave the color unchanged.
+# Rules are applied in order; each rule receives the output of the previous one.
+CLASSIFICATION_OVERRIDE_RULES = [rule_incremental_reg_id]
+
 
 # Reading of dictionaries
 
@@ -1187,6 +1252,23 @@ def plot_scores(scores_list: dict | list, title: str = "Feature Similarity Score
         plt.show()
 
 
+# === CLASSIFICATION OVERRIDES ===
+
+def apply_classification_overrides(base_color: str, scores: dict, gleif_vars: dict, manager_vars: dict) -> str:
+    """
+    Applies all registered CLASSIFICATION_OVERRIDE_RULES in order.
+    Each rule may return a new color to override; returning None means no change.
+    Rules are chained: each rule sees the color produced by the previous one.
+    Returns the final color after all rules have been applied.
+    """
+    color = base_color
+    for rule in CLASSIFICATION_OVERRIDE_RULES:
+        result = rule(color, scores, gleif_vars, manager_vars)
+        if result is not None:
+            color = result
+    return color
+
+
 # === CHECK DUPLICATES LOGIC ===
 
 def classify_candidate_emoji_color(results: dict) -> str:
@@ -1257,6 +1339,8 @@ def _classify_all_results(all_results: list) -> dict:
     }
     
     processed_leis = st.session_state.processed_leis
+    all_gleif_duplicates = st.session_state.all_gleif_duplicates
+    manager_vars = st.session_state.manager_vars
     
     for i, results in enumerate(all_results):
         authority_id_score = results.get("Authority ID")
@@ -1266,8 +1350,10 @@ def _classify_all_results(all_results: list) -> dict:
             classification["has_authority_mismatch"] = True
             classification["mismatched_leis"].append(processed_leis[i])
         
-        # Classify status
-        status = classify_candidate_emoji_color(results)
+        # Classify status (base), then apply override rules
+        gleif_vars = all_gleif_duplicates[i] if i < len(all_gleif_duplicates) else {}
+        base_status = classify_candidate_emoji_color(results)
+        status = apply_classification_overrides(base_status, results, gleif_vars, manager_vars)
         classification["status_log"].append(status)
         
         if status == "RED":
