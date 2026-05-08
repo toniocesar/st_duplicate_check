@@ -740,7 +740,7 @@ def extract_lei_manager_vars(text_lei_manager: str, debug: bool = False) -> dict
     entity_ids = re.findall(entity_id_pattern, text_lei_manager)
 
     # Find ALL Validation Authority IDs
-    authority_id_pattern = r"Validation Authority ID:.*?\(\s*([A-Z0-9]+)\s*\)"
+    authority_id_pattern = r"Validation Authority ID:.*?\(\s*(RA\d{6})\s*\)"
     authority_ids = re.findall(authority_id_pattern, text_lei_manager)
 
     # Pair them together
