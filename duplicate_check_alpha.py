@@ -1469,7 +1469,7 @@ def _display_candidate_details(classification: dict) -> None:
         # Check if Authority ID is 0 (different)
         authority_warning = " ⚠️ DIFFERENT AUTHORITY" if results.get("Authority ID") == 0 else ""
 
-        with st.expander(f"{emoji} Duplicate candidate: {lei_code}{authority_warning}"):
+        with st.expander(f"{emoji} Duplicate candidate: [{lei_code}](https://search.gleif.org/#/record/{lei_code}){authority_warning}"):
             styled_table = build_comparison_table(
                 results,
                 gleif_vars,
