@@ -1651,14 +1651,14 @@ if st.button("Process LEI Manager", use_container_width=True):
     not_idented\n
     """
     warning_text = """
-    Warning\n
-    patrick is\\n
-    patrick is\n
-    patrick is\n
-    \n- patrick\n
-    patrick i\n
+    Warning (not in the box)\n
+    In the box\n
+    In the box\n
+    In the box\n
+    \n- This line triggers the copyable box for everything except the first line (this line is also outside of the box). It is triggered by: "backslash" + "n" + "- "\n
+    not in the box\n
     """
-    #st.warning(warning_text)
+    st.warning(warning_text)
     #st.warning(text)
     #st.warning(text2)
     #st.warning(text3)
