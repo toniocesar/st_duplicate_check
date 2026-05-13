@@ -1650,6 +1650,15 @@ if st.button("Process LEI Manager", use_container_width=True):
     \n- idented\n
     not_idented\n
     """
+    warning_text = """
+    Warning\n
+    patrick is\\n
+    patrick is\n
+    patrick is\n
+    \n- patrick\n
+    patrick i\n
+    """
+    #st.warning(warning_text)
     #st.warning(text)
     #st.warning(text2)
     #st.warning(text3)
