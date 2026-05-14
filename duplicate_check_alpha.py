@@ -1658,6 +1658,14 @@ if st.button("Process LEI Manager", use_container_width=True):
     \n- This line triggers the copyable box for everything except the first line (this line is also outside of the box). It is triggered by: "backslash" + "n" + "- "\n
     not in the box\n
     """
+
+    test_warning = """
+    Warning\n 
+    ⚠️ Authority Mismatch. The following candidates have a different Registration Authority ID. These should be checked individually:\n
+    - 724500RQU8AJ9ML32G38\n
+    \n-
+    """
+    #st.warning(test_warning)
     #st.warning(warning_text)
     #st.warning(text)
     #st.warning(text2)
