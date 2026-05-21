@@ -1420,13 +1420,21 @@ def _build_status_messages(classification: dict) -> dict:
     
     return messages
 
+def clean_copied_text(text: str) -> str:
+    
+    text = text.replace("*", "")
+    if text.startswith("."):
+        text = text[1:].strip()
+
+    return text
 
 def _display_status_messages(messages: dict) -> None:
     """Displays all status messages using appropriate Streamlit functions."""
     
     if messages["error_msg"]:
         st.error(messages["error_msg"])
-        copy_button(messages["error_msg"])
+        clean_text = clean_copied_text(messages["error_msg"])
+        copy_button(clean_text)
     
     # Combine all warnings into a single message
     combined_warnings = []
@@ -1438,12 +1446,15 @@ def _display_status_messages(messages: dict) -> None:
         combined_warnings.append(messages["authority_msg"])
     
     if combined_warnings:
-        st.warning("\n---\n".join(combined_warnings), icon = None)
-        copy_button("\n---\n".join(combined_warnings))
+        text_to_display = "\n\n".join(combined_warnings)
+        st.warning(text_to_display, icon = None)
+        clean_text = clean_copied_text(text_to_display)
+        copy_button(clean_text)
     
     if messages["success_msg"]:
         st.success(messages["success_msg"])
-        copy_button(messages["success_msg"])
+        clean_text = clean_copied_text(messages["success_msg"])
+        copy_button(clean_text)
 
 
 def _display_candidate_details(classification: dict) -> None:
