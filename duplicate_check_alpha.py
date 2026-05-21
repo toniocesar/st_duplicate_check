@@ -18,6 +18,7 @@ import os
 import streamlit as st
 from streamlit.runtime.scriptrunner import get_script_run_ctx
 from numpy.random import default_rng as rng
+from st_copy import copy_button
 
 
 ### Variable Declarations
@@ -1425,6 +1426,7 @@ def _display_status_messages(messages: dict) -> None:
     
     if messages["error_msg"]:
         st.error(messages["error_msg"])
+        copy_button(messages["error_msg"])
     
     # Combine all warnings into a single message
     combined_warnings = []
@@ -1437,9 +1439,11 @@ def _display_status_messages(messages: dict) -> None:
     
     if combined_warnings:
         st.warning("\n---\n".join(combined_warnings), icon = None)
+        copy_button("\n---\n".join(combined_warnings))
     
     if messages["success_msg"]:
         st.success(messages["success_msg"])
+        copy_button(messages["success_msg"])
 
 
 def _display_candidate_details(classification: dict) -> None:
