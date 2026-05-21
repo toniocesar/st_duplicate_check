@@ -487,7 +487,7 @@ def fetch_gleif_vars(lei: str) -> dict | None:
     lei_status_pairs = st.session_state.lei_status_pairs
     status = lei_status_pairs.get(lei)
     
-    print(f"LEI: {status}")  # Debug print for LEI status
+    #print(f"LEI: {status}")  # Debug print for LEI status
     
     # Try API first
     gleif_variables = _fetch_gleif_via_api(lei)
@@ -684,9 +684,9 @@ def advanced_duplicates_text_regex(duplicates_text: str) -> list:
     
     st.session_state.results_duplicates_regex = results
 
-    for company in results:
-        #st.write(company)
-        print(company)
+    # Debug:
+    #for company in results:
+        #print(company)
 
     return results
 
