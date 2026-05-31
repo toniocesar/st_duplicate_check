@@ -1,0 +1,30 @@
+import re
+import pyperclip
+
+text = r"""
+PASTE YOUR RAW TEXT HERE
+"""
+
+# Replace escaped newlines with real newlines
+text = text.replace("\\n", "\n")
+
+# Isolate LEI values with spaces around them
+text = re.sub(
+    r'"lei":"([A-Z0-9]{20})"',
+    r'"lei":" \1 "',
+    text
+)
+
+# Optional: remove JSON punctuation clutter
+text = re.sub(r'^[\[\]\{\}",]+|[\[\]\{\}",]+$', '', text, flags=re.MULTILINE)
+
+# Optional: collapse excessive blank lines
+text = re.sub(r'\n\s*\n+', '\n\n', text)
+
+# Copy to clipboard
+pyperclip.copy(text)
+
+# Print result
+print(text)
+
+print("\n\nText copied to clipboard.")

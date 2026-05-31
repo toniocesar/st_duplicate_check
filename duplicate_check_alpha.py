@@ -137,7 +137,7 @@ with st.sidebar:
     """, unsafe_allow_html=True)
 
 
-pattern = r'^[A-Z0-9]{20}$'
+pattern = r'\b[A-Z0-9]{20}\b'
 pattern_duplicate_count = r'(\d+)\s+duplicate\(s\)\s+found'
 url_stem = "https://api.gleif.org/api/v1/lei-records/"
 
