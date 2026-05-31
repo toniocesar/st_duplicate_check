@@ -1426,7 +1426,7 @@ def clean_copied_text(text: str) -> str:
     if text.startswith("."):
         text = text[1:].strip()
 
-    return text
+    return text + "\n\n"
 
 def _display_status_messages(messages: dict) -> None:
     """Displays all status messages using appropriate Streamlit functions."""
