@@ -1631,63 +1631,7 @@ manager_text = st.text_area(
 )
 
 if st.button("Process LEI Manager", use_container_width=True):
-    
-    text = """
-    not_idented\n
-    - idented\n
-    - idented\n
-    - idented\n
-    not_idented\n
-    - idented\n
-    - idented\n
-    - idented\n
-    not_idented\n
 
-    """   
-    
-    text2 = """
-    not_idented
-    \n- idented\n
-    - even_more_idented\n
-    - even_more_idented\n
-    idented
-    - even_more_idented\n
-    - even_more_idented\n
-    - even_more_idented\n
-    idented\n
-    """
-    text3 = """
-    not_idented\n
-    not_idented (but in a box that can be copied. Box starts here)\n
-    - idented (but in a box that can be copied.)\n
-    - idented (but in a box that can be copied.)\n
-    - idented (but in a box that can be copied.)\n
-    not_idented (but in a box that can be copied.)\n
-    - idented (but in a box that can be copied.)\n
-    - idented (but in a box that can be copied. Box ends here)\n
-    \n- idented\n
-    not_idented\n
-    """
-    warning_text = """
-    Warning (not in the box)\n
-    In the box\n
-    In the box\n
-    In the box\n
-    \n- This line triggers the copyable box for everything except the first line (this line is also outside of the box). It is triggered by: "backslash" + "n" + "- "\n
-    not in the box\n
-    """
-
-    test_warning = """
-    Warning\n 
-    ⚠️ Authority Mismatch. The following candidates have a different Registration Authority ID. These should be checked individually:\n
-    - 724500RQU8AJ9ML32G38\n
-    \n-
-    """
-    #st.warning(test_warning)
-    #st.warning(warning_text)
-    #st.warning(text)
-    #st.warning(text2)
-    #st.warning(text3)
     if manager_text.strip():
         manager_vars = extract_lei_manager_vars(manager_text)
         if manager_vars["legal_name"] is not None:
