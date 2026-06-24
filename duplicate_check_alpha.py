@@ -1581,6 +1581,9 @@ def _process_duplicates_text(duplicates_text: str) -> None:
         st.warning("Please paste some text first.")
         return
     
+    # Remove text before "5 duplicate(s) found. Order locked."
+    duplicates_text = re.sub(r".*?(\d+ duplicate\(s\) found\. Order locked\.)", r"\1", duplicates_text, flags=re.DOTALL)
+    
     # Extract and process duplicates
     advanced_duplicates_text_regex(duplicates_text)
     extracted_leis = _extract_leis_from_duplicates_text(duplicates_text)
